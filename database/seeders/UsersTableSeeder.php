@@ -4,31 +4,24 @@ namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
 use App\Models\User;
-use Illuminate\Support\Facades\Hash;
 
 class UsersTableSeeder extends Seeder
 {
     public function run(): void
     {
-        User::create([
-            'name' => 'Administrador',
-            'email' => 'admin@gestorpro.com',
-            'password' => Hash::make('Admin123'),
-            'role' => 'admin'
-        ]);
+        User::updateOrCreate(
+            ['email' => 'owner@gestorpro.test'],
+            ['name' => 'Owner Demo', 'password' => 'password123', 'role' => 'owner']
+        );
 
-        User::create([
-            'name' => 'Supervisor',
-            'email' => 'supervisor@gestorpro.com',
-            'password' => Hash::make('Supervisor123'),
-            'role' => 'supervisor'
-        ]);
+        User::updateOrCreate(
+            ['email' => 'admin@gestorpro.test'],
+            ['name' => 'Admin Demo', 'password' => 'password123', 'role' => 'admin']
+        );
 
-        User::create([
-            'name' => 'Miembro',
-            'email' => 'miembro@gestorpro.com',
-            'password' => Hash::make('Member123'),
-            'role' => 'member'
-        ]);
+        User::updateOrCreate(
+            ['email' => 'member@gestorpro.test'],
+            ['name' => 'Member Demo', 'password' => 'password123', 'role' => 'member']
+        );
     }
 }
