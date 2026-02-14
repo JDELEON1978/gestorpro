@@ -1,26 +1,3 @@
-@import 'tailwindcss';
-
-:root{
-  /* Basado en la paleta institucional del manual (azules, celeste, verde, gris, negro y blanco) */
-  --inde-azul: #005A9C;     /* Azul INDE (aprox) */
-  --inde-celeste: #00A0DF;  /* Celeste INDE (aprox) */
-  --inde-verde: #7DBA2F;    /* Verde INDE (aprox) */
-  --inde-gris: #7A7A7A;     /* Gris institucional (aprox) */
-  --inde-negro: #111111;
-  --inde-blanco: #ffffff;
-
-  --bg: #f6f8fb;            /* fondo suave */
-  --card: #ffffff;
-  --border: #e6ebf2;
-}
-
-
-@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
-@source '../../storage/framework/views/*.php';
-@source '../**/*.blade.php';
-@source '../**/*.js';
-
-@theme {
-    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
-        'Segoe UI Symbol', 'Noto Color Emoji';
-}
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
