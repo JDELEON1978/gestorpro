@@ -16,10 +16,20 @@ class Workspace extends Model
         return $this->belongsTo(User::class, 'owner_user_id');
     }
 
-    public function users(): BelongsToMany
+    /**
+     * Membresías del workspace (tabla pivote estándar: workspace_user)
+     */
+    public function members(): BelongsToMany
     {
-        return $this->belongsToMany(User::class)
-            ->withPivot(['role'])
+        return $this->belongsToMany(User::class, 'workspace_user')
+            ->withPivot('role')
+            ->withTimestamps();
+    }
+
+    public function users()
+    {
+        return $this->belongsToMany(User::class, 'user_workspace')
+            ->withPivot('role')
             ->withTimestamps();
     }
 

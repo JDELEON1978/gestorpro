@@ -3,8 +3,26 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class TaskFile extends Model
 {
-    //
+    protected $fillable = [
+        'task_id',
+        'user_id',
+        'original_name',
+        'path',
+        'mime',
+        'size_bytes',
+    ];
+
+    public function task(): BelongsTo
+    {
+        return $this->belongsTo(Task::class);
+    }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
 }

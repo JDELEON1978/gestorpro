@@ -3,7 +3,6 @@
 
 @section('content')
 <style>
-  /* Ajustes locales (para que no dependas del CSS externo al 100%) */
   .gp-tabs { display:flex; gap:10px; flex-wrap:wrap; }
   .gp-tab{
     display:inline-flex; align-items:center; justify-content:center;
@@ -18,11 +17,7 @@
     background: rgba(0,90,156,.10);
     border-color: rgba(0,90,156,.30);
   }
-
-  /* Sidebar mini */
-  .gp-sidebar-mini-wrap{
-    width: 64px;
-  }
+  .gp-sidebar-mini-wrap{ width: 64px; }
 </style>
 
 <div class="container-fluid py-3">
@@ -32,12 +27,10 @@
     <div class="col-12 col-lg-3 col-xxl-3" id="gpSidebarCol">
       <div class="gp-panel h-100 d-flex flex-column">
 
-        {{-- Header sidebar --}}
         <div class="d-flex align-items-center justify-content-between px-3 py-3 border-bottom" style="border-color: var(--border);">
           <div class="fw-bold">&nbsp;</div>
 
           <div class="d-flex align-items-center gap-2">
-            {{-- Nuevo Workspace --}}
             <button class="btn btn-sm gp-btn"
                     type="button"
                     title="Nuevo Workspace"
@@ -46,7 +39,6 @@
               <i class="bi bi-plus-lg"></i>
             </button>
 
-            {{-- Colapsar --}}
             <button class="btn btn-sm gp-btn"
                     type="button"
                     id="btnSidebarCollapse"
@@ -70,7 +62,6 @@
                 }
               @endphp
 
-              {{-- Workspace --}}
               <button
                 class="list-group-item list-group-item-action d-flex align-items-center justify-content-between py-2"
                 type="button"
@@ -91,7 +82,6 @@
                 </div>
               </button>
 
-              {{-- Proyectos --}}
               <div class="collapse {{ $wsOpen ? 'show' : '' }}" id="{{ $collapseId }}">
                 <div class="list-group list-group-flush">
                   @forelse($ws->projects as $pr)
@@ -114,7 +104,6 @@
                     <div class="list-group-item py-2 ps-4 text-muted">Sin proyectos</div>
                   @endforelse
 
-                  {{-- Nuevo Proyecto (modal) --}}
                   <button type="button"
                           class="list-group-item list-group-item-action py-2 ps-4"
                           data-bs-toggle="modal"
@@ -145,11 +134,11 @@
       </div>
     </div>
 
-    {{-- MAIN (se expande cuando sidebar colapsa) --}}
+    {{-- MAIN --}}
     <div class="col-12 col-lg-9 col-xxl-9" id="gpMainCol">
       <div class="gp-panel overflow-hidden">
 
-        {{-- Header tipo ClickUp --}}
+        {{-- Header --}}
         <div class="gp-main-head p-3 border-bottom" style="border-color: var(--border);">
           <div class="d-flex align-items-start justify-content-between gap-3 flex-wrap">
 
@@ -162,10 +151,6 @@
 
               <div class="gp-h1 mt-1">
                 {{ $currentProject?->name ?? 'Selecciona un proyecto' }}
-              </div>
-
-              <div class="text-sm gp-muted mt-1">
-                Vistas tipo ClickUp
               </div>
             </div>
 
@@ -186,10 +171,13 @@
                   <i class="bi bi-funnel me-1"></i> Filtro
                 </button>
 
-                <a class="btn gp-btn-primary"
-                   href="{{ route('projects.tasks.create', $currentProject) }}">
+                {{-- ✅ MODAL --}}
+                <button class="btn gp-btn-primary"
+                        type="button"
+                        data-bs-toggle="modal"
+                        data-bs-target="#modalNewTask">
                   <i class="bi bi-plus-lg me-1"></i> Nueva tarea
-                </a>
+                </button>
               @endif
             </div>
 
@@ -208,7 +196,6 @@
             <div class="gp-tabs mt-3">
               @foreach($tabs as $key => $meta)
                 @php [$label, $icon] = $meta; @endphp
-
                 <a class="gp-tab {{ $viewMode === $key ? 'gp-tab-active' : '' }}"
                    href="{{ route('dashboard', ['project_id' => $currentProject->id, 'view' => $key]) }}">
                   <i class="bi {{ $icon }} me-2"></i>{{ $label }}
@@ -220,19 +207,15 @@
 
         {{-- Content --}}
         <div class="gp-content p-3">
-          @if(!$currentProject)
-            <div class="text-sm gp-muted text-center py-5">
-              Selecciona un proyecto del panel izquierdo.
-            </div>
-          @else
-            @if($viewMode === 'lista')
-              @include('tasks.views.lista', ['project' => $currentProject, 'statuses' => $statuses, 'tasksByStatus' => $tasksByStatus])
-            @elseif($viewMode === 'tabla')
-              @include('tasks.views.tabla', ['project' => $currentProject, 'statuses' => $statuses, 'tasksByStatus' => $tasksByStatus])
-            @else
-              @include('tasks.views.tablero', ['project' => $currentProject, 'statuses' => $statuses, 'tasksByStatus' => $tasksByStatus])
-            @endif
-          @endif
+          {{-- ✅ Solo esta parte se reemplaza por AJAX --}}
+          <div id="gpProjectArea">
+            @include('dashboard._project_area', [
+              'currentProject' => $currentProject,
+              'statuses' => $statuses,
+              'tasksByStatus' => $tasksByStatus,
+              'viewMode' => $viewMode,
+            ])
+          </div>
         </div>
 
       </div>
@@ -241,12 +224,85 @@
   </div>
 </div>
 
+{{-- Modal: Nueva Tarea --}}
+@if($currentProject)
+<div class="modal fade" id="modalNewTask" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <form class="modal-content" method="POST" id="formNewTask"
+          action="{{ route('projects.tasks.store', $currentProject) }}">
+      @csrf
+      {{-- Mantener vista actual --}}
+      <input type="hidden" name="view" value="{{ $viewMode }}">
+
+      <div class="modal-header">
+        <h5 class="modal-title">Nueva tarea</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+
+      <div class="modal-body">
+        <div class="row g-3">
+
+          <div class="col-12">
+            <label class="form-label fw-semibold">Título</label>
+            <input type="text" name="title" class="form-control" required placeholder="Ej: Revisar firewall Fortinet">
+          </div>
+
+          <div class="col-12">
+            <label class="form-label fw-semibold">Descripción (opcional)</label>
+            <textarea name="description" class="form-control" rows="3" placeholder="Detalles de la tarea..."></textarea>
+          </div>
+
+          <div class="col-12 col-md-4">
+            <label class="form-label fw-semibold">Estado</label>
+            <select name="status_id" class="form-select" required>
+              @foreach($statuses as $st)
+                <option value="{{ $st->id }}">{{ $st->name }}</option>
+              @endforeach
+            </select>
+          </div>
+
+          <div class="col-12 col-md-4">
+            <label class="form-label fw-semibold">Prioridad</label>
+            {{-- ✅ INT 1..5 (como valida el controller) --}}
+            <select name="priority" class="form-select">
+              <option value="">—</option>
+              <option value="1">P1</option>
+              <option value="2">P2</option>
+              <option value="3">P3</option>
+              <option value="4">P4</option>
+              <option value="5">P5</option>
+            </select>
+          </div>
+
+          <div class="col-12 col-md-4">
+            <label class="form-label fw-semibold">Fecha límite</label>
+            {{-- ✅ due_at (como valida el controller) --}}
+            <input type="date" name="due_at" class="form-control">
+          </div>
+
+        </div>
+
+        <div class="small text-muted mt-3">
+          Proyecto: <span class="fw-semibold">{{ $currentProject->name }}</span>
+        </div>
+
+        <div class="alert alert-danger mt-3 d-none" id="newTaskError"></div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn gp-btn" data-bs-dismiss="modal">Cancelar</button>
+        <button type="submit" class="btn gp-btn-primary" id="btnSubmitNewTask">Crear tarea</button>
+      </div>
+    </form>
+  </div>
+</div>
+@endif
+
 {{-- Modal: Nuevo Proyecto --}}
 <div class="modal fade" id="modalNewProject" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog">
     <form class="modal-content" method="POST" id="formNewProject" action="">
       @csrf
-
       <div class="modal-header">
         <h5 class="modal-title">Nuevo Proyecto</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
@@ -310,18 +366,14 @@
     const isMini = sidebarCol.classList.contains('col-auto');
 
     if(isMini){
-      // Expandir
       sidebarCol.className = 'col-12 col-lg-3 col-xxl-3';
       mainCol.className    = 'col-12 col-lg-9 col-xxl-9';
-
       expanded.style.display  = 'block';
       collapsed.style.display = 'none';
       btn.textContent = '<<';
     }else{
-      // Colapsar real (solo boton >>)
       sidebarCol.className = 'col-auto';
       mainCol.className    = 'col';
-
       expanded.style.display  = 'none';
       collapsed.style.display = 'block';
       btn.textContent = '>>';
@@ -341,6 +393,78 @@
       if(form) form.action = `/workspaces/${wsId}/projects`;
     });
   });
+
+  // ✅ Crear tarea por AJAX y refrescar solo el área del proyecto
+  (function(){
+    const form = document.getElementById('formNewTask');
+    if(!form) return;
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const errBox = document.getElementById('newTaskError');
+      if(errBox){
+        errBox.classList.add('d-none');
+        errBox.textContent = '';
+      }
+
+      const btn = document.getElementById('btnSubmitNewTask');
+      if(btn) btn.disabled = true;
+
+      try{
+        const res = await fetch(form.action, {
+          method: 'POST',
+          headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept': 'application/json'
+          },
+          body: new FormData(form)
+        });
+
+        const data = await res.json().catch(() => null);
+
+        if(!res.ok || !data || !data.ok){
+          // Mostrar errores de validación si vienen
+          let msg = 'No se pudo crear la tarea.';
+          if(data && data.message) msg = data.message;
+
+          if(data && data.errors){
+            const lines = [];
+            Object.keys(data.errors).forEach(k => {
+              (data.errors[k] || []).forEach(m => lines.push(m));
+            });
+            if(lines.length) msg = lines.join('<br>');
+          }
+
+          if(errBox){
+            errBox.innerHTML = msg;
+            errBox.classList.remove('d-none');
+          }
+          return;
+        }
+
+        // Reemplazar área del proyecto
+        const area = document.getElementById('gpProjectArea');
+        if(area) area.innerHTML = data.html;
+
+        // Cerrar modal
+        const modalEl = document.getElementById('modalNewTask');
+        const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+        modal.hide();
+
+        // Limpiar form
+        form.reset();
+
+      }catch(ex){
+        if(errBox){
+          errBox.textContent = 'Error de red o servidor.';
+          errBox.classList.remove('d-none');
+        }
+      }finally{
+        if(btn) btn.disabled = false;
+      }
+    });
+  })();
 </script>
 @endpush
 @endsection

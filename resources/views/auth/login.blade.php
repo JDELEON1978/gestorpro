@@ -1,47 +1,54 @@
-<x-guest-layout>
-    <!-- Session Status -->
-    <x-auth-session-status class="mb-4" :status="session('status')" />
+@extends('layouts.guest', ['title' => 'Ingresar'])
+
+@section('content')
+
+<div class="gp-login-card text-center">
+
+    {{-- Logo INDE --}}
+    <img src="{{ asset('images/inde.png') }}" class="gp-login-logo mb-3" alt="INDE">
+
+    <div class="gp-login-title">Sistema GestorPro</div>
+    <div class="gp-login-sub mb-4">División DCPA</div>
+
+    @if ($errors->any())
+        <div class="alert alert-danger small text-start">
+            @foreach ($errors->all() as $error)
+                <div>{{ $error }}</div>
+            @endforeach
+        </div>
+    @endif
 
     <form method="POST" action="{{ route('login') }}">
         @csrf
 
-        <!-- Email Address -->
-        <div>
-            <x-input-label for="email" :value="__('Email')" />
-            <x-text-input id="email" class="block mt-1 w-full" type="email" name="email" :value="old('email')" required autofocus autocomplete="username" />
-            <x-input-error :messages="$errors->get('email')" class="mt-2" />
+        <div class="mb-3 text-start">
+            <label class="form-label fw-semibold">Usuario</label>
+            <input type="email"
+                   name="email"
+                   class="form-control form-control-lg"
+                   required
+                   autofocus>
         </div>
 
-        <!-- Password -->
-        <div class="mt-4">
-            <x-input-label for="password" :value="__('Password')" />
-
-            <x-text-input id="password" class="block mt-1 w-full"
-                            type="password"
-                            name="password"
-                            required autocomplete="current-password" />
-
-            <x-input-error :messages="$errors->get('password')" class="mt-2" />
+        <div class="mb-3 text-start">
+            <label class="form-label fw-semibold">Contraseña</label>
+            <input type="password"
+                   name="password"
+                   class="form-control form-control-lg"
+                   required>
         </div>
 
-        <!-- Remember Me -->
-        <div class="block mt-4">
-            <label for="remember_me" class="inline-flex items-center">
-                <input id="remember_me" type="checkbox" class="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500" name="remember">
-                <span class="ms-2 text-sm text-gray-600">{{ __('Remember me') }}</span>
+        <div class="form-check mb-3 text-start">
+            <input class="form-check-input" type="checkbox" name="remember">
+            <label class="form-check-label small">
+                Recordarme
             </label>
         </div>
 
-        <div class="flex items-center justify-end mt-4">
-            @if (Route::has('password.request'))
-                <a class="underline text-sm text-gray-600 hover:text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500" href="{{ route('password.request') }}">
-                    {{ __('Forgot your password?') }}
-                </a>
-            @endif
-
-            <x-primary-button class="ms-3">
-                {{ __('Log in') }}
-            </x-primary-button>
-        </div>
+        <button type="submit" class="btn btn-primary gp-login-btn">
+            Ingresar
+        </button>
     </form>
-</x-guest-layout>
+</div>
+
+@endsection

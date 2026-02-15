@@ -1,0 +1,230 @@
+/* =============================================================================
+   GestorPro UI Kit (INDE + ClickUp-like)
+   - Tokens + componentes reusables
+   - Evita inline styles dispersos
+============================================================================= */
+
+:root{
+  --inde-blue: #005F87;
+  --inde-blue-2: #004964;
+  --inde-cyan: #0ABDFA;
+
+  --bg-app: #F4F7FB;
+  --panel: #FFFFFF;
+  --border: rgba(15, 23, 42, 0.10);
+  --muted: #6B7280;
+  --text: #0F172A;
+
+  --radius-lg: 16px;
+  --radius-md: 12px;
+  --radius-sm: 10px;
+
+  --shadow-1: 0 8px 30px rgba(15, 23, 42, 0.08);
+  --shadow-2: 0 12px 36px rgba(15, 23, 42, 0.12);
+}
+
+/* Rompe el max-width del container padre (full-bleed real) */
+.gp-fullbleed{
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+}
+
+/* Por si aparece scroll horizontal */
+body{ overflow-x: hidden; }
+
+.gp-tab{
+  display:inline-flex;
+  align-items:center;
+  gap: 6px;
+}
+
+.gp-tab i{
+  font-size: 14px;
+}
+
+/* Base */
+.gp-app { background: var(--bg-app); color: var(--text); }
+.gp-panel { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-1); }
+.gp-muted { color: var(--muted); }
+
+.gp-btn{
+  display:inline-flex; align-items:center; gap:.5rem;
+  border:1px solid var(--border); border-radius: 12px;
+  padding:.6rem .9rem; font-weight:600;
+  background:#fff;
+}
+.gp-btn:hover{ background: rgba(2,6,23,0.03); }
+.gp-btn-primary{
+  border-color: transparent;
+  background: var(--inde-blue);
+  color:#fff;
+}
+.gp-btn-primary:hover{ background: var(--inde-blue-2); }
+
+/* Topbar */
+.gp-topbar{
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+.gp-brand{
+  display:flex; align-items:center; gap:.75rem;
+}
+.gp-logo{
+  width:40px; height:40px; border-radius: 12px;
+  background: var(--inde-blue);
+}
+.gp-title{ font-weight:800; }
+.gp-subtitle{ font-size: 12px; color: var(--muted); }
+
+/* Layout 20/80 */
+.gp-shell{
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 16px;
+  display:flex;
+  gap: 16px;
+}
+.gp-sidebar{ width: 20%; min-width: 260px; }
+.gp-main{ width: 80%; }
+
+/* Sidebar tree */
+.gp-tree{
+  padding: 12px;
+  display:flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.gp-tree-group{
+  border:1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow:hidden;
+}
+.gp-tree-header{
+  width:100%;
+  padding: 10px 12px;
+  display:flex;
+  align-items:center;
+  justify-content: space-between;
+  background: rgba(2,6,23,0.02);
+  font-weight: 800;
+}
+.gp-tree-header:hover{ background: rgba(2,6,23,0.04); }
+.gp-tree-items{ padding: 10px; display:flex; flex-direction:column; gap: 6px; }
+.gp-tree-item{
+  padding: 10px 10px;
+  border-radius: 12px;
+  border:1px solid transparent;
+  font-weight: 700;
+  display:flex;
+  align-items:center;
+  justify-content: space-between;
+}
+.gp-tree-item:hover{ background: rgba(2,6,23,0.03); }
+.gp-tree-item-active{
+  background: rgba(0,95,135,0.08);
+  border-color: rgba(0,95,135,0.25);
+}
+.gp-badge{
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(2,6,23,0.06);
+  color: var(--text);
+}
+
+/* Main header / breadcrumb */
+.gp-main-head{
+  padding: 18px 18px 12px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.gp-breadcrumb{
+  font-size: 12px;
+  color: var(--muted);
+  display:flex;
+  align-items:center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.gp-h1{ font-size: 22px; font-weight: 900; margin-top: 4px; }
+.gp-actions{ display:flex; gap: 10px; align-items:center; }
+
+/* Tabs */
+.gp-tabs{ margin-top: 12px; display:flex; gap: 8px; }
+.gp-tab{
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-weight: 800;
+  font-size: 13px;
+  background: #fff;
+}
+.gp-tab:hover{ background: rgba(2,6,23,0.03); }
+.gp-tab-active{
+  background: rgba(0,95,135,0.10);
+  border-color: rgba(0,95,135,0.25);
+}
+
+/* Kanban */
+.gp-content{ padding: 16px; }
+.gp-kanban{
+  display:flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+.gp-col{
+  min-width: 280px;
+  max-width: 320px;
+  background: rgba(2,6,23,0.02);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+.gp-col-head{
+  padding: 10px 12px;
+  display:flex;
+  align-items:center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  background: rgba(255,255,255,0.75);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border);
+  border-top-left-radius: var(--radius-lg);
+  border-top-right-radius: var(--radius-lg);
+}
+.gp-col-title{
+  font-weight: 900;
+  font-size: 13px;
+  letter-spacing: .02em;
+  text-transform: uppercase;
+}
+.gp-col-sub{ font-size: 12px; color: var(--muted); margin-top: 2px; }
+.gp-col-body{ padding: 10px; display:flex; flex-direction:column; gap: 10px; }
+
+.gp-card{
+  background:#fff;
+  border:1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 12px;
+  box-shadow: 0 8px 20px rgba(15,23,42,0.06);
+}
+.gp-card:hover{ box-shadow: var(--shadow-2); }
+.gp-card-title{ font-weight: 900; }
+.gp-card-desc{ margin-top: 6px; font-size: 13px; color: var(--muted); }
+.gp-meta{ margin-top: 10px; display:flex; gap: 6px; flex-wrap: wrap; }
+.gp-pill{
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(2,6,23,0.06);
+}
+.gp-add{
+  width:100%;
+  padding: 10px;
+  border-radius: var(--radius-lg);
+  border: 1px dashed rgba(15,23,42,0.25);
+  background: rgba(255,255,255,0.6);
+  font-weight: 800;
+}
+.gp-add:hover{ background: rgba(255,255,255,0.9); }

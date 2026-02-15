@@ -1,30 +1,48 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use App\Models\Workspace;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class WorkspaceController extends Controller
 {
+    public function index()
+    {
+        $user = auth()->user();
+        $workspaces = $user->workspaces()->orderBy('name')->get();
+
+        return view('workspaces.index', compact('workspaces'));
+    }
+
+    public function create()
+    {
+        return view('workspaces.create');
+    }
+
     public function store(Request $request)
     {
         $data = $request->validate([
-            'name' => ['required','string','max:120'],
+            'name' => ['required', 'string', 'max:255'],
         ]);
+        
 
-        $user = $request->user();
+        DB::transaction(function () use ($data) {
+            $workspace = Workspace::create([
+                'name' => $data['name'],
+                'owner_user_id' => auth()->id(),
+            ]);
 
-        $workspace = Workspace::create([
-            'name' => $data['name'],
-            'owner_user_id' => $user->id,
-        ]);
+            // pivote real: user_workspace
+            $workspace->users()->syncWithoutDetaching([
+                auth()->id() => ['role' => 'owner'],
+            ]);
+        });
 
-        // El dueño también es miembro con rol owner
-        $workspace->users()->attach($user->id, ['role' => 'owner']);
-
-        // (Etapa 2) podríamos guardar workspace actual en sesión
-        // session(['current_workspace_id' => $workspace->id]);
-
-        return redirect()->route('dashboard')->with('success', 'Workspace creado.');
+        // ✅ redirección pedida
+        return redirect()
+        ->route('dashboard')
+        ->with('success', 'Workspace creado');
     }
 }

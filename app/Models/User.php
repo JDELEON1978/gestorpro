@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
+
 class User extends Authenticatable
 {
     use HasFactory, Notifiable;
@@ -39,10 +40,11 @@ class User extends Authenticatable
         return $this->hasMany(Workspace::class, 'owner_user_id');
     }
 
-    public function workspaces(): BelongsToMany
-    {
-        return $this->belongsToMany(Workspace::class)
-            ->withPivot(['role'])   // si tu pivote tiene role
-            ->withTimestamps();
-    }
+	public function workspaces()
+{
+    return $this->belongsToMany(Workspace::class, 'user_workspace')
+        ->withPivot('role')
+        ->withTimestamps();
+}
+
 }

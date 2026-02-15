@@ -1,0 +1,322 @@
+/* =============================================================================
+   GestorPro UI Kit (INDE + ClickUp-like)
+============================================================================= */
+
+:root{
+  --inde-blue: #005A9C;
+  --inde-blue-2: #0A6DB8;
+  --inde-cyan: #0ABDFA;
+
+  --bg-app: #F4F7FB;
+  --panel: #FFFFFF;
+  --border: rgba(15, 23, 42, 0.10);
+  --muted: #6B7280;
+  --text: #0F172A;
+
+  --radius-lg: 16px;
+  --radius-md: 12px;
+  --radius-sm: 10px;
+
+  --shadow-1: 0 8px 30px rgba(15, 23, 42, 0.08);
+  --shadow-2: 0 12px 36px rgba(15, 23, 42, 0.12);
+}
+
+/* ======================================================
+   BASE
+====================================================== */
+
+.gp-app {
+  background: var(--inde-cyan);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+.gp-panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-1);
+}
+
+.gp-muted { color: var(--muted); }
+
+/* ======================================================
+   TOPBAR
+====================================================== */
+
+.gp-topbar-inde{
+  background: var(--inde-blue);
+  color:#fff;
+}
+
+.gp-topbar-inde .gp-brand__title,
+.gp-topbar-inde .gp-brand__sub{
+  color:#fff;
+}
+
+.gp-inde-logo{
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: rgba(255,255,255,.14);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  overflow:hidden;
+}
+
+.gp-inde-logo img{
+  width: 90%;
+  height: 90%;
+  object-fit: contain;
+}
+
+.gp-btn-ghost-inde{
+  background: rgba(255,255,255,.12) !important;
+  color:#fff !important;
+  border:1px solid rgba(255,255,255,.22) !important;
+}
+
+.gp-btn-ghost-inde:hover{
+  background: rgba(255,255,255,.18) !important;
+}
+
+/* ======================================================
+   BOTONES
+====================================================== */
+
+.gp-btn{
+  display:inline-flex;
+  align-items:center;
+  gap:.5rem;
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:.6rem .9rem;
+  font-weight:600;
+  background:#fff;
+}
+
+.gp-btn:hover{
+  background: rgba(2,6,23,0.03);
+}
+
+.gp-btn-primary{
+  border:none;
+  background: var(--inde-blue);
+  color:#fff;
+}
+
+.gp-btn-primary:hover{
+  background: var(--inde-blue-2);
+}
+
+/* ======================================================
+   LAYOUT APP (FULL WIDTH)
+====================================================== */
+
+.gp-shell{
+  width:100%;
+  display:flex;
+  gap:16px;
+  padding:16px;
+}
+
+.gp-sidebar{
+  flex: 0 0 280px;
+}
+
+.gp-main{
+  flex: 1;
+}
+
+/* ======================================================
+   SIDEBAR TREE
+====================================================== */
+
+.gp-tree{
+  padding:12px;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+
+.gp-tree-group{
+  border:1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow:hidden;
+}
+
+.gp-tree-header{
+  width:100%;
+  padding:8px 10px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  background: rgba(2,6,23,0.02);
+  font-weight:800;
+  font-size:13px;
+}
+
+.gp-tree-header:hover{
+  background: rgba(2,6,23,0.04);
+}
+
+.gp-tree-items{
+  padding:8px;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+
+.gp-tree-item{
+  padding:8px 10px;
+  border-radius:12px;
+  border:1px solid transparent;
+  font-weight:700;
+  font-size:13px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+}
+
+.gp-tree-item:hover{
+  background: rgba(2,6,23,0.03);
+}
+
+.gp-tree-item-active{
+  background: rgba(0,95,135,0.08);
+  border-color: rgba(0,95,135,0.25);
+}
+
+.gp-badge{
+  font-size:11px;
+  padding:2px 7px;
+  border-radius:999px;
+  background: rgba(2,6,23,0.06);
+}
+
+/* ======================================================
+   MAIN HEADER
+====================================================== */
+
+.gp-main-head{
+  padding:18px;
+  border-bottom:1px solid var(--border);
+}
+
+.gp-breadcrumb{
+  font-size:12px;
+  color:var(--muted);
+  display:flex;
+  gap:6px;
+  flex-wrap:wrap;
+}
+
+.gp-h1{
+  font-size:22px;
+  font-weight:900;
+  margin-top:4px;
+}
+
+.gp-actions{
+  display:flex;
+  gap:10px;
+  align-items:center;
+}
+
+/* ======================================================
+   TABS
+====================================================== */
+
+.gp-tabs{
+  margin-top:12px;
+  display:flex;
+  gap:8px;
+}
+
+.gp-tab{
+  padding:8px 14px;
+  border-radius:999px;
+  border:1px solid var(--border);
+  font-weight:800;
+  font-size:13px;
+  background:#fff;
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+}
+
+.gp-tab:hover{
+  background: rgba(2,6,23,0.03);
+}
+
+.gp-tab-active{
+  background: rgba(0,95,135,0.10);
+  border-color: rgba(0,95,135,0.25);
+}
+
+/* ======================================================
+   KANBAN
+====================================================== */
+
+.gp-content{
+  padding:16px;
+}
+
+.gp-kanban{
+  display:flex;
+  gap:12px;
+  overflow-x:auto;
+  padding-bottom:8px;
+}
+
+.gp-col{
+  min-width:280px;
+  max-width:320px;
+  background: rgba(2,6,23,0.02);
+  border:1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.gp-col-head{
+  padding:10px 12px;
+  display:flex;
+  justify-content:space-between;
+  background: rgba(255,255,255,0.75);
+  backdrop-filter: blur(8px);
+  border-bottom:1px solid var(--border);
+  position:sticky;
+  top:0;
+}
+
+.gp-col-body{
+  padding:10px;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+
+.gp-card{
+  background:#fff;
+  border:1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding:12px;
+  box-shadow:0 8px 20px rgba(15,23,42,0.06);
+}
+
+.gp-card:hover{
+  box-shadow: var(--shadow-2);
+}
+
+/* ======================================================
+   SIDEBAR COLLAPSABLE
+====================================================== */
+
+.gp-sidebar-wrap{
+  transition: all .15s ease-in-out;
+}
+
+.gp-sidebar-wrap.gp-sidebar-collapsed{
+  flex: 0 0 72px !important;
+  max-width: 72px !important;
+}
