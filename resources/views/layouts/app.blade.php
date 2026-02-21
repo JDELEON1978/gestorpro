@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
   <title>{{ $title ?? 'GestorPro - División DCPA' }}</title>
 
   {{-- Bootstrap 5 --}}
@@ -65,25 +66,38 @@
 </div>
 
 
-        <div>
-            <div class="dropdown">
-                <button class="btn btn-sm text-white dropdown-toggle"
-                        style="background: rgba(255,255,255,0.15); border:none;"
-                        data-bs-toggle="dropdown">
-                    {{ auth()->user()->name }}
-                </button>
-                <ul class="dropdown-menu dropdown-menu-end">
-                    <li>
-                        <form method="POST" action="{{ route('logout') }}">
-                            @csrf
-                            <button class="dropdown-item" type="submit">
-                                <i class="bi bi-box-arrow-right me-1"></i> Salir
-                            </button>
-                        </form>
-                    </li>
-                </ul>
-            </div>
+    <div>
+        <div class="dropdown">
+            <button class="btn btn-sm text-white dropdown-toggle"
+                    style="background: rgba(255,255,255,0.15); border:none;"
+                    data-bs-toggle="dropdown">
+                {{ auth()->user()->name }}
+            </button>
+
+            <ul class="dropdown-menu dropdown-menu-end">
+
+                {{-- NUEVO LINK --}}
+                <li>
+                    <a class="dropdown-item" href="{{ route('process.builder') }}">
+                        <i class="bi bi-diagram-3 me-1"></i> Armar Proceso
+                    </a>
+                </li>
+
+                <li><hr class="dropdown-divider"></li>
+
+                <li>
+                    <form method="POST" action="{{ route('logout') }}">
+                        @csrf
+                        <button class="dropdown-item" type="submit">
+                            <i class="bi bi-box-arrow-right me-1"></i> Salir
+                        </button>
+                    </form>
+                </li>
+
+            </ul>
         </div>
+    </div>
+
 
     </div>
 </header>

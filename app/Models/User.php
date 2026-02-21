@@ -39,12 +39,17 @@ class User extends Authenticatable
     {
         return $this->hasMany(Workspace::class, 'owner_user_id');
     }
+    public function roles(): BelongsToMany
+    {
+        return $this->belongsToMany(\App\Models\Rol::class, 'role_user', 'user_id', 'role_id')
+            ->withTimestamps();
+    }
 
-	public function workspaces()
-{
-    return $this->belongsToMany(Workspace::class, 'user_workspace')
-        ->withPivot('role')
-        ->withTimestamps();
-}
+        public function workspaces()
+    {
+        return $this->belongsToMany(Workspace::class, 'user_workspace')
+            ->withPivot('role')
+            ->withTimestamps();
+    }
 
 }

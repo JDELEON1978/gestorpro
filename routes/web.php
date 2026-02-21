@@ -7,6 +7,8 @@ use App\Http\Controllers\WorkspaceController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\ProjectStatusController;
+use App\Http\Controllers\TaskFileController;
+use App\Http\Controllers\ProcessBuilderController;
 
 
 /*
@@ -30,23 +32,83 @@ Route::get('/', function () {
 */
 Route::middleware(['auth'])->group(function () {
 
-    // Dashboard principal
-    Route::get('/dashboard', [DashboardController::class, 'index'])
-        ->name('dashboard');
+        // Dashboard principal
+        Route::get('/dashboard', [DashboardController::class, 'index'])
+            ->name('dashboard');
 
-    /*
-    |--------------------------------------------------------------------------
-    | Workspaces (MVP)
-    |--------------------------------------------------------------------------
-    */
-    Route::get('/workspaces', [WorkspaceController::class, 'index'])
-        ->name('workspaces.index');
+        /*
+        |--------------------------------------------------------------------------
+        | Workspaces (MVP)
+        |--------------------------------------------------------------------------
+        */
+        Route::get('/workspaces', [WorkspaceController::class, 'index'])
+            ->name('workspaces.index');
 
-    Route::get('/workspaces/create', [WorkspaceController::class, 'create'])
-        ->name('workspaces.create');
+        Route::get('/workspaces/create', [WorkspaceController::class, 'create'])
+            ->name('workspaces.create');
 
-    Route::post('/workspaces', [WorkspaceController::class, 'store'])
-        ->name('workspaces.store');
+        Route::post('/workspaces', [WorkspaceController::class, 'store'])
+            ->name('workspaces.store');
+
+        
+        Route::get('/process-builder/{proceso?}', [ProcessBuilderController::class, 'index'])
+            ->name('process.builder');
+
+        // ITEMS
+        Route::post('/process-builder/{proceso}/item', [ProcessBuilderController::class, 'storeItem'])
+            ->name('builder.item.store');
+
+        Route::put('/process-builder/item/{item}', [ProcessBuilderController::class, 'updateItem'])
+            ->name('builder.item.update');
+        
+        Route::get('/process-builder/{proceso?}', [ProcessBuilderController::class, 'index'])
+            ->name('process.builder');
+
+        Route::get('/process-builder/{proceso?}', [ProcessBuilderController::class, 'index'])
+        ->name('process.builder');
+
+        // NODOS
+        Route::post('/process-builder/{proceso}/nodo', [ProcessBuilderController::class, 'storeNodo'])
+            ->name('builder.nodo.store');
+
+        Route::put('/process-builder/nodo/{nodo}', [ProcessBuilderController::class, 'updateNodo'])
+            ->name('builder.nodo.update');
+
+        // POSICIÓN NODO (drag)
+        Route::patch('/process-builder/nodo/{nodo}/position', [ProcessBuilderController::class, 'updateNodoPosition'])
+            ->name('builder.nodo.position');
+
+        // GRAFO (nodos + relaciones)
+        Route::get('/process-builder/{proceso}/graph', [ProcessBuilderController::class, 'graph'])
+            ->name('builder.graph');
+
+        // RELACIONES (nuevo)
+        Route::post('/process-builder/{proceso}/relacion', [ProcessBuilderController::class, 'storeRelacion'])
+            ->name('builder.relacion.store');
+
+
+/*
+|--------------------------------------------------------------------------
+| Dashboard 2
+|--------------------------------------------------------------------------
+*/        
+
+        Route::middleware(['auth'])->group(function () {
+            Route::get('/process-builder/{proceso?}', [ProcessBuilderController::class, 'index'])->name('process.builder');
+
+            // Proceso
+            Route::post('/process-builder/proceso', [ProcessBuilderController::class, 'storeProceso'])->name('builder.proceso.store');
+            Route::put('/process-builder/proceso/{proceso}', [ProcessBuilderController::class, 'updateProceso'])->name('builder.proceso.update');
+
+            // Nodo
+            Route::post('/process-builder/{proceso}/nodo', [ProcessBuilderController::class, 'storeNodo'])->name('builder.nodo.store');
+            Route::put('/process-builder/nodo/{nodo}', [ProcessBuilderController::class, 'updateNodo'])->name('builder.nodo.update');
+
+            // Item
+            Route::post('/process-builder/{proceso}/item', [ProcessBuilderController::class, 'storeItem'])->name('builder.item.store');
+            Route::put('/process-builder/item/{item}', [ProcessBuilderController::class, 'updateItem'])->name('builder.item.update');
+        });
+
 
 
 
@@ -73,22 +135,45 @@ Route::middleware(['auth'])->group(function () {
             ->name('projects.statuses.store');
 
 
-    /*
-    |--------------------------------------------------------------------------
-    | Projects (dentro de un workspace)
-    |--------------------------------------------------------------------------
-    | Seguridad multi-tenant:
-    | El acceso real se controla dentro del ProjectController con ProjectPolicy.
-    */
-    Route::get('/workspaces/{workspace}/projects', [ProjectController::class, 'index'])
-        ->name('workspaces.projects.index');
+        /*
+        |--------------------------------------------------------------------------
+        | Projects (dentro de un workspace)
+        |--------------------------------------------------------------------------
+        | Seguridad multi-tenant:
+        | El acceso real se controla dentro del ProjectController con ProjectPolicy.
+        */
+        Route::get('/workspaces/{workspace}/projects', [ProjectController::class, 'index'])
+            ->name('workspaces.projects.index');
 
-    Route::get('/workspaces/{workspace}/projects/create', [ProjectController::class, 'create'])
-        ->name('workspaces.projects.create');
+        Route::get('/workspaces/{workspace}/projects/create', [ProjectController::class, 'create'])
+            ->name('workspaces.projects.create');
 
-    Route::post('/workspaces/{workspace}/projects', [ProjectController::class, 'store'])
-        ->name('workspaces.projects.store');
-});
+        Route::post('/workspaces/{workspace}/projects', [ProjectController::class, 'store'])
+            ->name('workspaces.projects.store');
+        });
+
+        /*
+        |--------------------------------------------------------------------------
+        | Task (dentro de un workspace)
+        |--------------------------------------------------------------------------
+        |  
+        | 
+        */
+
+        Route::patch('/tasks/{task}', [TaskController::class, 'update'])
+        ->name('tasks.update');
+
+        Route::get('/tasks/{task}/files', [TaskFileController::class, 'index'])
+             ->name('tasks.files.index');
+
+        Route::post('/tasks/{task}/files', [TaskFileController::class, 'store'])
+            ->name('tasks.files.store');
+
+        Route::get('/tasks/{task}/files/{file}/download', [TaskFileController::class, 'download'])
+            ->name('tasks.files.download');
+
+        Route::delete('/tasks/{task}/files/{file}', [TaskFileController::class, 'destroy'])
+            ->name('tasks.files.destroy');
 
 /*
 |--------------------------------------------------------------------------

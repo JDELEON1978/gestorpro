@@ -1,54 +1,55 @@
 {{-- resources/views/tasks/views/tabla.blade.php --}}
-@php
-  $rows = collect();
-
-  foreach($statuses as $st){
-    $sid = $st->id;
-    $tasks = $tasksByStatus[$sid] ?? collect();
-
-    foreach($tasks as $t){
-      $rows->push([
-        'id' => $t->id,
-        'title' => $t->title ?? ('Tarea #' . $t->id),
-        'status' => $st->name,
-        'assignee' => $t->assignee?->name ?? 'Sin asignar',
-        'due_date' => !empty($t->due_date) ? \Illuminate\Support\Carbon::parse($t->due_date)->toDateString() : '—',
-        'priority' => strtoupper($t->priority ?? '—'),
-      ]);
-    }
-  }
-@endphp
-
 <div class="table-responsive">
-  <table class="table align-middle">
-    <thead>
-      <tr class="text-muted small">
-        <th style="width:90px;">ID</th>
-        <th>Nombre</th>
-        <th style="width:180px;">Estado</th>
-        <th style="width:200px;">Asignado</th>
-        <th style="width:140px;">Fecha límite</th>
-        <th style="width:120px;">Prioridad</th>
+  <table class="table table-sm table-hover align-middle">
+    <thead class="table-light">
+      <tr>
+        <th>Título</th>
+        <th>Estado</th>
+        <th>Inicio</th>
+        <th>Fin</th>
+        <th>Prioridad</th>
       </tr>
     </thead>
-
     <tbody>
-      @if($rows->count() === 0)
-        <tr>
-          <td colspan="6" class="text-center text-muted py-4">No hay tareas</td>
-        </tr>
-      @else
-        @foreach($rows as $r)
-          <tr>
-            <td class="text-muted">#{{ $r['id'] }}</td>
-            <td class="fw-semibold">{{ $r['title'] }}</td>
-            <td><span class="badge rounded-pill text-bg-light">{{ $r['status'] }}</span></td>
-            <td><i class="bi bi-person me-1"></i>{{ $r['assignee'] }}</td>
-            <td><i class="bi bi-calendar3 me-1"></i>{{ $r['due_date'] }}</td>
-            <td><span class="badge rounded-pill text-bg-secondary">{{ $r['priority'] }}</span></td>
+      @foreach($statuses as $st)
+        @php $items = $tasksByStatus[$st->id] ?? collect(); @endphp
+
+        @foreach($items as $t)
+          @php
+            $payload = [
+              'id' => $t->id,
+              'title' => $t->title,
+              'description' => $t->description,
+              'status_id' => $t->status_id,
+              'priority' => $t->priority,
+              'start_at' => $t->start_at ? $t->start_at->format('Y-m-d') : null,
+              'due_at' => $t->due_at ? $t->due_at->format('Y-m-d') : null,
+            ];
+
+            $payloadJson = json_encode(
+              $payload,
+              JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT
+            );
+          @endphp
+
+          <tr class="js-task task-clickable"
+              style="cursor:pointer;"
+              data-task="{{ $payloadJson }}">
+            <td>{{ $t->title }}</td>
+            <td>{{ $st->name }}</td>
+            <td>{{ $t->start_at ? $t->start_at->format('Y-m-d') : '—' }}</td>
+            <td>{{ $t->due_at ? $t->due_at->format('Y-m-d') : '—' }}</td>
+            <td>
+              @if($t->priority)
+                <span class="badge text-bg-primary">P{{ $t->priority }}</span>
+              @else
+                —
+              @endif
+            </td>
           </tr>
+
         @endforeach
-      @endif
+      @endforeach
     </tbody>
   </table>
 </div>

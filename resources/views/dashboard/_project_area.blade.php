@@ -15,6 +15,8 @@
     @include('tasks.views.lista', ['project' => $currentProject, 'statuses' => $statuses, 'tasksByStatus' => $tasksByStatus])
   @elseif($viewMode === 'tabla')
     @include('tasks.views.tabla', ['project' => $currentProject, 'statuses' => $statuses, 'tasksByStatus' => $tasksByStatus])
+  @elseif($viewMode === 'cronograma')
+    @include('tasks.views.cronograma', ['project' => $currentProject, 'tasks' => $tasks, 'statuses' => $statuses])
   @else
     @include('tasks.views.tablero', ['project' => $currentProject, 'statuses' => $statuses, 'tasksByStatus' => $tasksByStatus])
   @endif

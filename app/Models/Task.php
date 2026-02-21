@@ -28,6 +28,7 @@ class Task extends Model
 
     protected $casts = [
         'due_at'       => 'datetime',
+        'start_at' => 'date',
         'started_at'   => 'datetime',
         'completed_at' => 'datetime',
         'archived_at'  => 'datetime',
@@ -54,4 +55,9 @@ class Task extends Model
     {
         return $this->belongsTo(User::class, 'created_by');
     }
+   public function files()
+    {
+        return $this->hasMany(TaskFile::class, 'task_id');
+    }
+
 }

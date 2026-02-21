@@ -13,7 +13,7 @@ class DashboardController extends Controller
 
         // 1) Vista actual (lista|tablero|tabla)
         $viewMode = $request->query('view', 'tablero');
-        if (!in_array($viewMode, ['lista', 'tablero', 'tabla'], true)) {
+        if (!in_array($viewMode, ['lista', 'tablero', 'tabla', 'cronograma'], true)) {
             $viewMode = 'tablero';
         }
 
@@ -31,6 +31,7 @@ class DashboardController extends Controller
         $currentProject = null;
         $statuses = collect();
         $tasksByStatus = [];
+        $tasks = collect();
 
         if ($projectId > 0) {
             $currentProject = Project::query()
@@ -44,8 +45,6 @@ class DashboardController extends Controller
 
             $statuses = $currentProject->statuses;
 
-            // IMPORTANTE:
-            // Aquí asumimos que Task usa status_id (como tu modelo Task.php).
             $tasks = $currentProject->tasks()
                 ->with(['assignee'])
                 ->whereNull('archived_at')
@@ -63,7 +62,8 @@ class DashboardController extends Controller
             'currentProject',
             'statuses',
             'tasksByStatus',
-            'viewMode'
+            'viewMode',
+            'tasks'
         ));
     }
 }
