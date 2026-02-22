@@ -129,6 +129,39 @@ public function guardarRelacionesNodo(Request $request, Nodo $nodo)
 
     return response()->json(['ok' => true]);
 }
+    public function updateNodoPort(Request $r, Nodo $nodo)
+    {
+        $data = $r->validate([
+            'port' => 'required|in:in,out',
+            'side' => 'required|in:left,right,top,bottom',
+            'offset' => 'required|integer|min:0|max:5000',
+        ]);
+
+        if ($data['port'] === 'in') {
+            $nodo->in_side = $data['side'];
+            $nodo->in_offset = $data['offset'];
+        } else {
+            $nodo->out_side = $data['side'];
+            $nodo->out_offset = $data['offset'];
+        }
+
+        $nodo->save();
+
+        return response()->json(['ok' => true]);
+    }
+    public function updateRelacionPort(Request $r, NodoRelacion $relacion)
+    {
+        $data = $r->validate([
+            'side' => 'required|in:left,right,top,bottom',
+            'offset' => 'required|integer|min:0|max:5000',
+        ]);
+
+        $relacion->out_side = $data['side'];
+        $relacion->out_offset = $data['offset'];
+        $relacion->save();
+
+        return response()->json(['ok' => true]);
+    }
 
 public function relacionesNodo(Nodo $nodo)
 {
@@ -144,13 +177,12 @@ public function relacionesNodo(Nodo $nodo)
     public function graph(Proceso $proceso)
     {
         $nodos = Nodo::where('proceso_id', $proceso->id)
-            ->select('id','proceso_id','nombre','tipo_nodo','orden','pos_x','pos_y')
+            ->select('id','proceso_id','nombre','tipo_nodo','orden','pos_x','pos_y','in_side','in_offset','out_side','out_offset')
             ->get();
 
         $relaciones = NodoRelacion::where('proceso_id', $proceso->id)
-            ->select('id','nodo_origen_id','nodo_destino_id','condicion','prioridad')
+            ->select('id','nodo_origen_id','nodo_destino_id','condicion','prioridad','out_side','out_offset','bend_x','bend_y')
             ->get();
-
         return response()->json([
             'nodos' => $nodos,
             'relaciones' => $relaciones,
@@ -273,6 +305,21 @@ public function storeNodo(Request $r, Proceso $proceso)
         $data['activo'] = $r->boolean('activo', true);
 
         $nodo->update($data);
+
+        // 1) IDs marcados
+        $itemIds = array_keys($request->input('items', []));
+
+        // 2) Construimos payload para sync con pivot obligatorio
+        $syncData = [];
+        foreach ($itemIds as $itemId) {
+            $syncData[$itemId] = [
+                'obligatorio' => (int)($request->input("obligatorio.$itemId", 1)) === 1
+            ];
+        }
+
+        // 3) sync
+        $nodo->items()->sync($syncData);
+        
         return back();
     }
 

@@ -19,6 +19,10 @@ class Nodo extends Model
         'activo',
         'responsable_rol_id',
         'descripcion',
+        'in_side',
+        'in_offset',
+        'out_side',
+        'out_offset'
     ];
     
 
@@ -28,6 +32,14 @@ class Nodo extends Model
         'activo' => 'boolean',
     ];
 
+    public function items()
+    {
+        // Relación directa para poder usar sync() fácil
+        return $this->belongsToMany(Item::class, 'nodo_items', 'nodo_id', 'item_id')
+            ->withPivot(['obligatorio'])
+            ->withTimestamps();
+    }
+    
     public function proceso(): BelongsTo
     {
         return $this->belongsTo(Proceso::class, 'proceso_id');
@@ -51,4 +63,5 @@ class Nodo extends Model
     {
         return $this->belongsTo(Role::class, 'responsable_rol_id');
     }
+    
 }

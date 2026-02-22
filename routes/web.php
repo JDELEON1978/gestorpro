@@ -68,6 +68,9 @@ Route::middleware(['auth'])->group(function () {
     Route::patch('/process-builder/nodo/{nodo}/position', [ProcessBuilderController::class, 'updateNodoPosition'])
         ->name('builder.nodo.position');
 
+    Route::patch('/process-builder/nodo/{nodo}/port', [ProcessBuilderController::class, 'updateNodoPort'])->name('builder.nodo.port');
+
+
     // Grafo
     Route::get('/process-builder/{proceso}/graph', [ProcessBuilderController::class, 'graph'])
         ->name('builder.graph');
@@ -75,6 +78,11 @@ Route::middleware(['auth'])->group(function () {
     // Relación simple (click verde -> click azul)
     Route::post('/process-builder/{proceso}/relacion', [ProcessBuilderController::class, 'storeRelacion'])
         ->name('builder.relacion.store');
+    Route::patch('/process-builder/relacion/{relacion}/port', [ProcessBuilderController::class, 'updateRelacionPort'])
+        ->name('builder.relacion.port');
+    Route::patch('/process-builder/relacion/{relacion}/bend', [ProcessBuilderController::class, 'updateRelacionBend'])
+        ->name('builder.relacion.bend');
+
 
     // Relación avanzada por nodo (modal: transiciones)
     Route::get('/process-builder/nodo/{nodo}/relaciones', [ProcessBuilderController::class, 'relacionesNodo'])

@@ -23,6 +23,13 @@ class Item extends Model
         'requiere_evidencia' => 'boolean',
         'activo' => 'boolean',
     ];
+    
+    public function nodos()
+    {
+        return $this->belongsToMany(Nodo::class, 'nodo_items', 'item_id', 'nodo_id')
+            ->withPivot(['obligatorio'])
+            ->withTimestamps();
+    }
 
     public function proceso(): BelongsTo
     {

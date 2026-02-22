@@ -3,7 +3,9 @@
 @section('content')
 
 <style>
-  /* ---- Look sutil por tipo ---- */
+  /* ============================================================
+   * UI: Look sutil por tipo de nodo (profesional)
+   * ============================================================ */
   .node-card{
     background:#fff;
     border:1px solid rgba(15,23,42,.14);
@@ -19,6 +21,8 @@
   .port{
     width:14px;height:14px;border-radius:50%;
     box-shadow: 0 2px 6px rgba(15,23,42,.18);
+    cursor: crosshair;
+    user-select: none;
   }
   .port.in{ background:#0d6efd; }
   .port.out{ background:#198754; }
@@ -76,6 +80,7 @@
 
           <div class="small text-muted">
             Tip: click en <span class="badge bg-success">verde</span> (salida) y luego en <span class="badge bg-primary">azul</span> (entrada) para crear relación.
+            <span class="ms-2">Extra: arrastra los puntos (ports) para despejar cruces.</span>
           </div>
         </div>
 
@@ -116,12 +121,12 @@
                     padding: 12px 12px 10px 12px;
                  ">
 
-              {{-- PORT IN (1) --}}
+              {{-- PORT IN base (1) --}}
               <span class="port in"
                     title="Entrada"
                     style="position:absolute; left:-7px; top: 22px;"></span>
 
-              {{-- PORT OUT base (1) - luego JS lo reemplaza si es decision --}}
+              {{-- PORT OUT base (1) - JS lo reemplaza si es decision --}}
               <span class="port out"
                     title="Salida"
                     style="position:absolute; right:-7px; top: 22px;"></span>
@@ -208,6 +213,11 @@
 
 @push('scripts')
 <script>
+/**
+ * ============================================================
+ * Modales: set action + rellenar campos
+ * ============================================================
+ */
 (function(){
   const setAction = (form, url) => form.setAttribute('action', url);
 
@@ -263,6 +273,12 @@
 </script>
 
 <script>
+/**
+ * ============================================================
+ * Modal nodo: transiciones/relaciones (decision)
+ * - Siempre sincroniza relaciones ANTES de submit
+ * ============================================================
+ */
 (function(){
   const CSRF = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
 
@@ -278,8 +294,6 @@
   if(!mNodo) return;
 
   const form = document.getElementById('formNodoEdit');
-  const tipoSelect = document.getElementById('tipoNodoEdit');
-
   const decisionRows = document.getElementById('decisionRows');
   const btnAddSalida = document.getElementById('btnAddSalida');
 
@@ -346,7 +360,6 @@
       const rels = json.relaciones || [];
 
       if(rels.length === 0){
-        // precarga sugerida (podés quitarla si no querés)
         const d1 = { condicion:'Carta de crédito de importación', prioridad:1 };
         const d2 = { condicion:'Carta de crédito local', prioridad:2 };
         decisionRows.insertAdjacentHTML('beforeend', rowTpl(d1));
@@ -363,13 +376,11 @@
     }
   });
 
-  // ✅ Siempre sincroniza relaciones ANTES del submit del nodo
   form.addEventListener('submit', async (e)=>{
     e.preventDefault();
 
     const action = form.getAttribute('action') || '';
     const nodoId = action.split('/').pop();
-
     const relaciones = readRows(); // puede ser []
 
     try{
@@ -380,7 +391,6 @@
           'X-CSRF-TOKEN': CSRF,
           'Accept':'application/json',
         },
-        // ✅ SIEMPRE mandar la llave relaciones aunque esté vacía
         body: JSON.stringify({ relaciones: relaciones })
       });
 
@@ -402,6 +412,24 @@
 </script>
 
 <script>
+/**
+ * ============================================================
+ * Canvas:
+ * - Drag de nodos (persistencia en BD ya existente)
+ * - Crear relación: click out -> click in
+ * - Puertos múltiples para decision
+ * - Dibujo de links por el puerto real
+ *
+ * ✅ ADICIÓN #8:
+ * - Permite MOVER puertos (verdes y azul) dentro del rectángulo del nodo
+ * - Persiste posiciones en localStorage para evitar que se bloqueen uniones
+ *
+ * ✅ ADICIÓN #9 (NUEVO en este mensaje):
+ * - Permite “rutar” la línea manualmente moviendo sus puntos de control (Bezier)
+ * - Dibuja 2 handles (c1 y c2) por relación (relacionId)
+ * - Persistencia en localStorage por proceso + relación
+ * ============================================================
+ */
 (function () {
   const canvas = document.getElementById('builderCanvas');
   if (!canvas) return;
@@ -418,13 +446,17 @@
     dragOffsetY: 0,
   };
 
-  // registrar nodos
+  // ============================================================
+  // Registro nodos
+  // ============================================================
   document.querySelectorAll('.node-card').forEach(el => {
     state.nodes.set(String(el.dataset.id), el);
     el.addEventListener('dragstart', (e)=> e.preventDefault());
   });
 
-  // drag
+  // ============================================================
+  // Drag de nodo (mueve el rectángulo)
+  // ============================================================
   document.querySelectorAll('.node-card').forEach(el => {
     el.addEventListener('mousedown', (e) => {
       if (e.target.closest('.port') || e.target.closest('.node-edit')) return;
@@ -483,7 +515,9 @@
     }
   });
 
-  // click out -> click in
+  // ============================================================
+  // Crear relación: click verde (out) -> click azul (in)
+  // ============================================================
   const linkMode = { from: null };
 
   canvas.addEventListener('click', async (e)=>{
@@ -524,8 +558,9 @@
         });
 
         if (!res.ok) return;
-        await loadGraph();
 
+        // Si tu backend devuelve {relacion: {...}}, loadGraph lo refresca todo bien
+        await loadGraph();
       } catch (err) {
         console.error(err);
       } finally {
@@ -535,16 +570,19 @@
     }
   });
 
-  // puertos múltiples solo en decision
+  // ============================================================
+  // Puertos múltiples solo en "decision"
+  // ============================================================
   function ensureDecisionPorts(){
     state.nodes.forEach((nodeEl, nodeId)=>{
       const tipo = nodeEl.dataset.tipo;
 
+      // Limpia puertos out generados (con relId)
       nodeEl.querySelectorAll('.port.out[data-rel-id]').forEach(p => p.remove());
 
       if(tipo !== 'decision') return;
 
-      // quitamos el out base y lo reemplazamos por N outs
+      // Para decision: quitamos el out base y lo reemplazamos por N outs
       nodeEl.querySelectorAll('.port.out').forEach(p => p.remove());
 
       const rels = state.links
@@ -555,7 +593,6 @@
       const step = 22;
 
       if(rels.length === 0){
-        // deja un out si no tiene relaciones aún
         const port = document.createElement('span');
         port.className = 'port out';
         port.title = 'Salida';
@@ -573,29 +610,313 @@
         nodeEl.appendChild(port);
       });
     });
+
+    // ✅ ADICIÓN #8: luego de recrear puertos, re-aplicamos posiciones guardadas
+    applySavedPortPositionsAll();
   }
 
+  // ============================================================
+  // ✅ ADICIÓN #8: Drag de ports + persistencia localStorage
+  // ============================================================
+  const portDrag = {
+    active: false,
+    portEl: null,
+    nodeEl: null,
+    startX: 0,
+    startY: 0,
+    startLeft: 0,
+    startTop: 0,
+  };
+
+  function clamp(v, min, max){ return Math.max(min, Math.min(max, v)); }
+
+  function portKey(portEl){
+    if(portEl.classList.contains('in')) return 'in';
+    const relId = portEl.dataset.relId;
+    if(relId) return `out:${relId}`;
+    return 'out:base';
+  }
+
+  function storageKey(nodeId, pKey){
+    return `gp:pb:${procesoId}:node:${nodeId}:port:${pKey}`;
+  }
+
+  function getPortPos(nodeId, pKey){
+    try{
+      const raw = localStorage.getItem(storageKey(nodeId, pKey));
+      return raw ? JSON.parse(raw) : null;
+    }catch(e){
+      return null;
+    }
+  }
+
+  function setPortPos(nodeId, pKey, pos){
+    try{
+      localStorage.setItem(storageKey(nodeId, pKey), JSON.stringify(pos));
+    }catch(e){}
+  }
+
+  function setPortAbsolute(portEl, leftPx, topPx){
+    portEl.style.right = 'auto';
+    portEl.style.bottom = 'auto';
+    portEl.style.left = `${leftPx}px`;
+    portEl.style.top  = `${topPx}px`;
+  }
+
+  function applySavedPortPositionsAll(){
+    state.nodes.forEach((nodeEl, nodeId)=>{
+      nodeEl.querySelectorAll('.port').forEach(portEl=>{
+        const pKey = portKey(portEl);
+        const pos = getPortPos(nodeId, pKey);
+        if(!pos) return;
+        setPortAbsolute(portEl, pos.left, pos.top);
+      });
+    });
+    drawLinks();
+  }
+
+  // Delegación: mousedown en cualquier port (in/out)
+  canvas.addEventListener('mousedown', (e)=>{
+    const portEl = e.target.closest('.port');
+    if(!portEl) return;
+
+    const nodeEl = portEl.closest('.node-card');
+    if(!nodeEl) return;
+
+    // Evita drag de nodo
+    e.stopPropagation();
+
+    portDrag.active = true;
+    portDrag.portEl = portEl;
+    portDrag.nodeEl = nodeEl;
+
+    portDrag.startX = e.clientX;
+    portDrag.startY = e.clientY;
+
+    const currentLeft = portEl.offsetLeft;
+    const currentTop  = portEl.offsetTop;
+
+    setPortAbsolute(portEl, currentLeft, currentTop);
+
+    portDrag.startLeft = currentLeft;
+    portDrag.startTop  = currentTop;
+
+    document.body.style.cursor = 'grabbing';
+    e.preventDefault();
+  });
+
+  document.addEventListener('mousemove', (e)=>{
+    if(!portDrag.active) return;
+
+    const portEl = portDrag.portEl;
+    const nodeEl = portDrag.nodeEl;
+
+    const dx = e.clientX - portDrag.startX;
+    const dy = e.clientY - portDrag.startY;
+
+    const nodeW = nodeEl.clientWidth;
+    const nodeH = nodeEl.clientHeight;
+
+    // Port 14px: dejamos que “salga” 7px para centrarlo en el borde
+    const minX = -7;
+    const minY = -7;
+    const maxX = nodeW - 7;
+    const maxY = nodeH - 7;
+
+    const newLeft = clamp(portDrag.startLeft + dx, minX, maxX);
+    const newTop  = clamp(portDrag.startTop  + dy, minY, maxY);
+
+    setPortAbsolute(portEl, newLeft, newTop);
+    drawLinks();
+  });
+
+  document.addEventListener('mouseup', ()=>{
+    if(!portDrag.active) return;
+
+    const portEl = portDrag.portEl;
+    const nodeEl = portDrag.nodeEl;
+
+    const nodeId = nodeEl.dataset.id;
+    const pKey = portKey(portEl);
+
+    // Guardar posición (relativa al nodo)
+    setPortPos(nodeId, pKey, {
+      left: portEl.offsetLeft,
+      top:  portEl.offsetTop
+    });
+
+    portDrag.active = false;
+    portDrag.portEl = null;
+    portDrag.nodeEl = null;
+    document.body.style.cursor = '';
+  });
+
+  // ============================================================
+  // Punto exacto de conexión: centro del puerto REAL
+  // (sirve para ports movibles)
+  // ============================================================
   function portPointByEl(nodeEl, portSelector) {
     const nodeRect = nodeEl.getBoundingClientRect();
     const canvasRect = canvas.getBoundingClientRect();
     const portEl = nodeEl.querySelector(portSelector);
 
-    const offsetTop = portEl ? portEl.offsetTop : 22;
-    const isOut = portSelector.includes('.out');
+    const offL = portEl ? portEl.offsetLeft : 0;
+    const offT = portEl ? portEl.offsetTop  : 22;
 
-    const x = isOut
-      ? (nodeRect.right - canvasRect.left)
-      : (nodeRect.left - canvasRect.left);
+    const x = (nodeRect.left - canvasRect.left) + offL + 7;
+    const y = (nodeRect.top  - canvasRect.top ) + offT + 7;
 
-    const y = (nodeRect.top - canvasRect.top) + offsetTop + 7;
     return { x, y };
   }
 
+  // ============================================================
+  // ✅ ADICIÓN #9: “Ruteo” manual de líneas (Bezier control points)
+  // ============================================================
+  const linkDrag = {
+    active: false,
+    relId: null,
+    which: null, // 'c1' o 'c2'
+    startX: 0,
+    startY: 0,
+    startCx: 0,
+    startCy: 0,
+  };
+
+  function linkStorageKey(relId){
+    // relId es el id de nodo_relaciones (o lo que devuelva tu graph)
+    return `gp:pb:${procesoId}:rel:${relId}:bezier`;
+  }
+
+  function getBezier(relId){
+    if(!relId) return null;
+    try{
+      const raw = localStorage.getItem(linkStorageKey(relId));
+      return raw ? JSON.parse(raw) : null;
+    }catch(e){
+      return null;
+    }
+  }
+
+  function setBezier(relId, bez){
+    if(!relId) return;
+    try{
+      localStorage.setItem(linkStorageKey(relId), JSON.stringify(bez));
+    }catch(e){}
+  }
+
+  /**
+   * Calcula puntos Bezier por defecto si no hay guardados.
+   * Usa una curva “suave” basada en dx, pero que luego tú editas moviendo handles.
+   */
+  function defaultBezier(p1, p2){
+    const dx = Math.max(80, Math.abs(p2.x - p1.x) * 0.5);
+    return {
+      c1x: p1.x + dx, c1y: p1.y,
+      c2x: p2.x - dx, c2y: p2.y
+    };
+  }
+
+  /**
+   * Crea/actualiza un handle (circle) en el SVG:
+   * - pointer-events habilitado para arrastrar
+   * - data-rel y data-which para saber qué estás moviendo
+   */
+  function upsertHandle(relId, which, x, y){
+    // class: handle handle-c1 / handle-c2
+    const cls = `handle handle-${which}`;
+    let el = svg.querySelector(`circle.${cls.replace(' ', '.') }[data-rel-id="${relId}"]`);
+    if(!el){
+      el = document.createElementNS('http://www.w3.org/2000/svg','circle');
+      el.classList.add('handle', `handle-${which}`);
+      el.setAttribute('r', '6');
+      el.setAttribute('data-rel-id', relId);
+      el.setAttribute('data-which', which);
+
+      // styling sutil (no grita)
+      el.setAttribute('fill', which === 'c1' ? 'rgba(13,110,253,.25)' : 'rgba(25,135,84,.25)');
+      el.setAttribute('stroke', 'rgba(15,23,42,.35)');
+      el.setAttribute('stroke-width', '1');
+
+      // IMPORTANTE: el SVG padre tiene pointer-events:none en tu HTML.
+      // Por eso al handle le activamos eventos explícitamente:
+      el.style.pointerEvents = 'all';
+      el.style.cursor = 'move';
+
+      svg.appendChild(el);
+    }
+    el.setAttribute('cx', x);
+    el.setAttribute('cy', y);
+  }
+
+  // Eventos de drag sobre handles (delegación en el SVG)
+  svg.addEventListener('mousedown', (e)=>{
+    const h = e.target.closest('circle.handle');
+    if(!h) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    const relId = h.getAttribute('data-rel-id');
+    const which = h.getAttribute('data-which');
+
+    // Lee lo guardado o usa lo que ya está en el DOM
+    const cx = parseFloat(h.getAttribute('cx')) || 0;
+    const cy = parseFloat(h.getAttribute('cy')) || 0;
+
+    linkDrag.active = true;
+    linkDrag.relId = relId;
+    linkDrag.which = which;
+    linkDrag.startX = e.clientX;
+    linkDrag.startY = e.clientY;
+    linkDrag.startCx = cx;
+    linkDrag.startCy = cy;
+
+    document.body.style.cursor = 'grabbing';
+  });
+
+  document.addEventListener('mousemove', (e)=>{
+    if(!linkDrag.active) return;
+
+    const dx = e.clientX - linkDrag.startX;
+    const dy = e.clientY - linkDrag.startY;
+
+    const newCx = linkDrag.startCx + dx;
+    const newCy = linkDrag.startCy + dy;
+
+    // Actualiza el handle en el SVG
+    upsertHandle(linkDrag.relId, linkDrag.which, newCx, newCy);
+
+    // Actualiza storage (solo el punto movido)
+    const bez = getBezier(linkDrag.relId) || {};
+    if(linkDrag.which === 'c1'){
+      bez.c1x = newCx; bez.c1y = newCy;
+    }else{
+      bez.c2x = newCx; bez.c2y = newCy;
+    }
+    setBezier(linkDrag.relId, bez);
+
+    // Redibuja paths usando los puntos nuevos
+    drawLinks();
+  });
+
+  document.addEventListener('mouseup', ()=>{
+    if(!linkDrag.active) return;
+    linkDrag.active = false;
+    linkDrag.relId = null;
+    linkDrag.which = null;
+    document.body.style.cursor = '';
+  });
+
+  // ============================================================
+  // Dibujo de flechas (con Bezier editable + handles)
+  // ============================================================
   function drawLinks() {
     if (!svg) return;
 
+    // Limpieza: paths + labels + handles (los reconstruimos por estado actual)
     [...svg.querySelectorAll('path.link')].forEach(p => p.remove());
     [...svg.querySelectorAll('text.linklabel')].forEach(t => t.remove());
+    [...svg.querySelectorAll('circle.handle')].forEach(h => h.remove());
 
     state.links.forEach(l => {
       const from = state.nodes.get(String(l.nodo_origen_id));
@@ -605,6 +926,7 @@
       const fromTipo = from.dataset.tipo;
       let fromSelector = '.port.out';
 
+      // Si es decision y tenemos rel-id, apuntamos al puerto específico
       if(fromTipo === 'decision' && l.id){
         fromSelector = `.port.out[data-rel-id="${l.id}"]`;
         if(!from.querySelector(fromSelector)){
@@ -615,11 +937,15 @@
       const p1 = portPointByEl(from, fromSelector);
       const p2 = portPointByEl(to, '.port.in');
 
-      const dx = Math.max(80, Math.abs(p2.x - p1.x) * 0.5);
-      const c1x = p1.x + dx;
-      const c1y = p1.y;
-      const c2x = p2.x - dx;
-      const c2y = p2.y;
+      // ✅ ADICIÓN #9: usar control points guardados por relación
+      const relId = l.id ? String(l.id) : null; // idealmente siempre existe
+      const saved = relId ? getBezier(relId) : null;
+      const base  = defaultBezier(p1, p2);
+
+      const c1x = (saved?.c1x ?? base.c1x);
+      const c1y = (saved?.c1y ?? base.c1y);
+      const c2x = (saved?.c2x ?? base.c2x);
+      const c2y = (saved?.c2y ?? base.c2y);
 
       const d = `M ${p1.x} ${p1.y} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${p2.x} ${p2.y}`;
 
@@ -632,6 +958,7 @@
       path.classList.add('link');
       svg.appendChild(path);
 
+      // Label (si existe)
       if (l.condicion) {
         const text = document.createElementNS('http://www.w3.org/2000/svg','text');
         text.textContent = l.condicion;
@@ -642,9 +969,18 @@
         text.classList.add('linklabel');
         svg.appendChild(text);
       }
+
+      // ✅ ADICIÓN #9: dibujar handles solo si hay relId (si no, no hay dónde guardar)
+      if(relId){
+        upsertHandle(relId, 'c1', c1x, c1y);
+        upsertHandle(relId, 'c2', c2x, c2y);
+      }
     });
   }
 
+  // ============================================================
+  // Carga grafo
+  // ============================================================
   async function loadGraph() {
     if (!procesoId) return;
 
@@ -665,6 +1001,10 @@
   }
 
   window.addEventListener('resize', ()=>{ ensureDecisionPorts(); drawLinks(); });
+
+  // ✅ ADICIÓN #8: aplicar posiciones guardadas apenas cargue UI
+  applySavedPortPositionsAll();
+
   loadGraph();
 })();
 </script>

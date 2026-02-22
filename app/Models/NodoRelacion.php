@@ -15,6 +15,9 @@ class NodoRelacion extends Model
         'nodo_destino_id',
         'condicion',
         'prioridad',
+        'out_side',
+        'out_offset',
+        'bend_x','bend_y',
     ];
 
     protected $casts = [
@@ -34,6 +37,20 @@ class NodoRelacion extends Model
     public function destino(): BelongsTo
     {
         return $this->belongsTo(Nodo::class, 'nodo_destino_id');
+    }
+    public function updateRelacionBend(Request $r, NodoRelacion $relacion)
+    {
+        // Validación: coordenadas del canvas
+        $data = $r->validate([
+            'bend_x' => ['nullable','integer','min:-5000','max:5000'],
+            'bend_y' => ['nullable','integer','min:-5000','max:5000'],
+        ]);
+
+        $relacion->bend_x = $data['bend_x'] ?? null;
+        $relacion->bend_y = $data['bend_y'] ?? null;
+        $relacion->save();
+
+        return response()->json(['ok' => true]);
     }
 
 }
