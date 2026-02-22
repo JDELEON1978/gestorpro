@@ -8,13 +8,19 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ExpedienteItem extends Model
 {
+    public const EST_PENDIENTE  = 'PENDIENTE';
+    public const EST_SUBIDO     = 'SUBIDO';
+    public const EST_EN_REVISION= 'EN_REVISION';
+    public const EST_APROBADO   = 'APROBADO';
+    public const EST_RECHAZADO  = 'RECHAZADO';
+
     protected $table = 'expediente_items';
 
     protected $fillable = [
         'expediente_id',
         'item_id',
         'nodo_id',
-        'estado', // pendiente | entregado | revisado | rechazado | aprobado
+        'estado', 
         'entregado_en',
         'revisado_en',
         'recibido_por',
@@ -23,6 +29,27 @@ class ExpedienteItem extends Model
         'rechazado_regresar_a_nodo_id',
         'observaciones',
     ];
+    public function markApproved(?int $userId = null, ?string $obs = null): void
+    {
+        $this->estado = self::EST_APROBADO;
+        $this->aprobado = true;
+        $this->revisado_en = now();
+        $this->revisado_por = $userId;
+        $this->observaciones = $obs;
+        $this->save();
+    }
+
+    public function markRejected(?int $userId = null, ?string $obs = null, ?int $regresarNodoId = null): void
+    {
+        $this->estado = self::EST_RECHAZADO;
+        $this->aprobado = false;
+        $this->revisado_en = now();
+        $this->revisado_por = $userId;
+        $this->observaciones = $obs;
+        $this->rechazado_regresar_a_nodo_id = $regresarNodoId;
+        $this->save();
+    }
+    
 
     protected $casts = [
         'entregado_en' => 'datetime',

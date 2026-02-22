@@ -17,7 +17,10 @@ class Nodo extends Model
         'orden',
         'sla_horas',
         'activo',
+        'responsable_rol_id',
+        'descripcion',
     ];
+    
 
     protected $casts = [
         'orden'  => 'integer',
@@ -43,5 +46,9 @@ class Nodo extends Model
     public function plantillaItems(): HasMany
     {
         return $this->hasMany(NodoItem::class, 'nodo_id');
+    }
+    public function responsableRol()
+    {
+        return $this->belongsTo(Role::class, 'responsable_rol_id');
     }
 }

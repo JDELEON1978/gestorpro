@@ -2,6 +2,30 @@
 
 @section('content')
 
+<style>
+  /* ---- Look sutil por tipo ---- */
+  .node-card{
+    background:#fff;
+    border:1px solid rgba(15,23,42,.14);
+    border-radius:12px;
+    box-shadow: 0 6px 18px rgba(15,23,42,.08);
+  }
+  .node-card[data-tipo="inicio"]    { border-left: 6px solid rgba(13,110,253,.55); }
+  .node-card[data-tipo="actividad"] { border-left: 6px solid rgba(25,135,84,.45); }
+  .node-card[data-tipo="decision"]  { border-left: 6px solid rgba(255,193,7,.55); }
+  .node-card[data-tipo="fin"]       { border-left: 6px solid rgba(220,53,69,.45); }
+  .node-card[data-tipo="conector"]  { border-left: 6px solid rgba(108,117,125,.45); }
+
+  .port{
+    width:14px;height:14px;border-radius:50%;
+    box-shadow: 0 2px 6px rgba(15,23,42,.18);
+  }
+  .port.in{ background:#0d6efd; }
+  .port.out{ background:#198754; }
+
+  .node-edit{ border:1px solid rgba(15,23,42,.12); }
+</style>
+
 <div class="container-fluid">
 
   <div class="d-flex align-items-center justify-content-between mb-2">
@@ -61,7 +85,7 @@
                position:relative;
                height: calc(78vh - 44px);
                background:
-                 radial-gradient(circle, rgba(15,23,42,.15) 1px, transparent 1px) 0 0 / 18px 18px;
+                 radial-gradient(circle, rgba(15,23,42,.12) 1px, transparent 1px) 0 0 / 18px 18px;
              ">
 
           {{-- SVG para flechas --}}
@@ -73,7 +97,7 @@
             </defs>
           </svg>
 
-          {{-- NODOS movibles (IMPORTANTE: ya NO abren modal al click) --}}
+          {{-- NODOS --}}
           @foreach($nodos as $idx => $n)
             @php
               $x = $n->pos_x ?? 120;
@@ -82,29 +106,27 @@
 
             <div class="node-card"
                  data-id="{{ $n->id }}"
+                 data-tipo="{{ $n->tipo_nodo }}"
                  style="
                     position:absolute;
                     left: {{ $x }}px;
                     top:  {{ $y }}px;
                     width: 260px;
                     cursor: grab;
-                    background: #fff;
-                    border: 1px solid rgba(15,23,42,.15);
-                    border-radius: 10px;
                     padding: 12px 12px 10px 12px;
-                    box-shadow: 0 6px 18px rgba(15,23,42,.08);
                  ">
 
-              {{-- PORTS --}}
+              {{-- PORT IN (1) --}}
               <span class="port in"
                     title="Entrada"
-                    style="position:absolute; left:-7px; top: 18px; width:14px; height:14px; border-radius:50%; background:#0d6efd;"></span>
+                    style="position:absolute; left:-7px; top: 22px;"></span>
 
+              {{-- PORT OUT base (1) - luego JS lo reemplaza si es decision --}}
               <span class="port out"
                     title="Salida"
-                    style="position:absolute; right:-7px; top: 18px; width:14px; height:14px; border-radius:50%; background:#198754;"></span>
+                    style="position:absolute; right:-7px; top: 22px;"></span>
 
-              {{-- ICONO EDITAR (solo con este abre modal) --}}
+              {{-- ICONO EDITAR --}}
               <button type="button"
                       class="btn btn-sm btn-light node-edit"
                       style="position:absolute; right:8px; top:8px; padding:2px 6px;"
@@ -114,7 +136,9 @@
                       data-tipo="{{ $n->tipo_nodo }}"
                       data-orden="{{ $n->orden }}"
                       data-sla="{{ $n->sla_horas }}"
-                      data-activo="{{ $n->activo ? 1 : 0 }}">
+                      data-activo="{{ $n->activo ? 1 : 0 }}"
+                      data-responsable_rol_id="{{ $n->responsable_rol_id }}"
+                      data-descripcion="{{ e($n->descripcion) }}">
                 <i class="bi bi-pencil"></i>
               </button>
 
@@ -161,8 +185,9 @@
                             data-nombre="{{ $it->nombre }}"
                             data-categoria="{{ $it->categoria }}"
                             data-evidencia="{{ $it->requiere_evidencia ? 1 : 0 }}"
-                            data-activo="{{ $it->activo ? 1 : 0 }}"
-                    >Editar</button>
+                            data-activo="{{ $it->activo ? 1 : 0 }}">
+                      Editar
+                    </button>
                   </div>
                 @endforeach
               </div>
@@ -202,7 +227,7 @@
     });
   }
 
-  // Nodo edit (se abre solo desde el ícono)
+  // Nodo edit
   const mNodo = document.getElementById('modalNodoEdit');
   if(mNodo){
     mNodo.addEventListener('show.bs.modal', (ev)=>{
@@ -215,6 +240,8 @@
       form.querySelector('[name=orden]').value = b.dataset.orden || '';
       form.querySelector('[name=sla_horas]').value = b.dataset.sla || '';
       form.querySelector('[name=activo]').checked = (b.dataset.activo == '1');
+      form.querySelector('[name=responsable_rol_id]').value = b.dataset.responsable_rol_id || '';
+      form.querySelector('[name=descripcion]').value = b.dataset.descripcion || '';
     });
   }
 
@@ -236,6 +263,145 @@
 </script>
 
 <script>
+(function(){
+  const CSRF = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+
+  function esc(s){
+    return (s ?? '').toString().replace(/[&<>"']/g, m => ({
+      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'
+    }[m]));
+  }
+
+  const nodosOptionsHtml = `{!! collect($nodos ?? collect())->map(fn($n)=>'<option value="'.$n->id.'">'.e($n->nombre).'</option>')->join('') !!}`;
+
+  const mNodo = document.getElementById('modalNodoEdit');
+  if(!mNodo) return;
+
+  const form = document.getElementById('formNodoEdit');
+  const tipoSelect = document.getElementById('tipoNodoEdit');
+
+  const decisionRows = document.getElementById('decisionRows');
+  const btnAddSalida = document.getElementById('btnAddSalida');
+
+  function rowTpl(rel){
+    const id = rel?.id ?? '';
+    const condicion = esc(rel?.condicion ?? '');
+    const prioridad = rel?.prioridad ?? 1;
+
+    return `
+      <div class="d-flex gap-2 align-items-center decision-row" data-id="${id}">
+        <input class="form-control form-control-sm"
+               placeholder="Etiqueta (ej: Importación / Local)"
+               value="${condicion}" data-k="condicion">
+
+        <select class="form-select form-select-sm" data-k="nodo_destino_id" style="width:320px">
+          <option value="">-- Destino --</option>
+          ${nodosOptionsHtml}
+        </select>
+
+        <input class="form-control form-control-sm" style="width:90px"
+               type="number" min="1" value="${prioridad}" data-k="prioridad">
+
+        <button type="button" class="btn btn-sm btn-outline-danger btnDelSalida">X</button>
+      </div>
+    `;
+  }
+
+  function readRows(){
+    const out = [];
+    decisionRows.querySelectorAll('.decision-row').forEach(r=>{
+      const id = r.dataset.id ? parseInt(r.dataset.id,10) : null;
+      const condicion = r.querySelector('[data-k=condicion]').value.trim();
+      const destVal = r.querySelector('[data-k=nodo_destino_id]').value;
+      const nodo_destino_id = destVal ? parseInt(destVal,10) : null;
+      const prioridad = parseInt(r.querySelector('[data-k=prioridad]').value,10) || 1;
+
+      if(!condicion || !nodo_destino_id) return;
+      out.push({ id, condicion, nodo_destino_id, prioridad });
+    });
+    return out;
+  }
+
+  btnAddSalida?.addEventListener('click', ()=>{
+    decisionRows.insertAdjacentHTML('beforeend', rowTpl({}));
+  });
+
+  decisionRows?.addEventListener('click', (e)=>{
+    if(e.target.classList.contains('btnDelSalida')){
+      e.target.closest('.decision-row')?.remove();
+    }
+  });
+
+  mNodo.addEventListener('show.bs.modal', async (ev)=>{
+    const b = ev.relatedTarget;
+    const nodoId = b.dataset.id;
+
+    decisionRows.innerHTML = '';
+
+    try{
+      const res = await fetch(`/process-builder/nodo/${nodoId}/relaciones`, {
+        headers:{'Accept':'application/json'}
+      });
+      const json = await res.json();
+      const rels = json.relaciones || [];
+
+      if(rels.length === 0){
+        // precarga sugerida (podés quitarla si no querés)
+        const d1 = { condicion:'Carta de crédito de importación', prioridad:1 };
+        const d2 = { condicion:'Carta de crédito local', prioridad:2 };
+        decisionRows.insertAdjacentHTML('beforeend', rowTpl(d1));
+        decisionRows.insertAdjacentHTML('beforeend', rowTpl(d2));
+      }else{
+        rels.forEach(rel=>{
+          decisionRows.insertAdjacentHTML('beforeend', rowTpl(rel));
+          const last = decisionRows.lastElementChild;
+          last.querySelector('[data-k=nodo_destino_id]').value = rel.nodo_destino_id;
+        });
+      }
+    }catch(e){
+      console.error('No se pudieron cargar relaciones', e);
+    }
+  });
+
+  // ✅ Siempre sincroniza relaciones ANTES del submit del nodo
+  form.addEventListener('submit', async (e)=>{
+    e.preventDefault();
+
+    const action = form.getAttribute('action') || '';
+    const nodoId = action.split('/').pop();
+
+    const relaciones = readRows(); // puede ser []
+
+    try{
+      const res = await fetch(`/process-builder/nodo/${nodoId}/relaciones`, {
+        method:'POST',
+        headers:{
+          'Content-Type':'application/json',
+          'X-CSRF-TOKEN': CSRF,
+          'Accept':'application/json',
+        },
+        // ✅ SIEMPRE mandar la llave relaciones aunque esté vacía
+        body: JSON.stringify({ relaciones: relaciones })
+      });
+
+      if(!res.ok){
+        const t = await res.text();
+        console.error('Error guardando relaciones:', t);
+        alert('No se pudieron guardar las transiciones. Revisa consola.');
+        return;
+      }
+
+      form.submit();
+    }catch(err){
+      console.error(err);
+      alert('Error de red guardando transiciones. Revisa consola.');
+    }
+  });
+
+})();
+</script>
+
+<script>
 (function () {
   const canvas = document.getElementById('builderCanvas');
   if (!canvas) return;
@@ -246,23 +412,24 @@
 
   const state = {
     links: [],
-    nodes: new Map(), // id -> el
+    nodes: new Map(),
     dragging: null,
     dragOffsetX: 0,
     dragOffsetY: 0,
-    moved: false,
   };
 
-  // --- registrar nodos + drag ---
+  // registrar nodos
   document.querySelectorAll('.node-card').forEach(el => {
     state.nodes.set(String(el.dataset.id), el);
+    el.addEventListener('dragstart', (e)=> e.preventDefault());
+  });
 
+  // drag
+  document.querySelectorAll('.node-card').forEach(el => {
     el.addEventListener('mousedown', (e) => {
-      // NO arrastrar si se clickeó un port o el botón de editar
       if (e.target.closest('.port') || e.target.closest('.node-edit')) return;
 
       state.dragging = el;
-      state.moved = false;
       el.style.cursor = 'grabbing';
 
       const rect = el.getBoundingClientRect();
@@ -271,9 +438,6 @@
 
       e.preventDefault();
     });
-
-    // Evitar selecciones raras
-    el.addEventListener('dragstart', (e)=> e.preventDefault());
   });
 
   document.addEventListener('mousemove', (e) => {
@@ -289,7 +453,6 @@
     state.dragging.style.left = `${x}px`;
     state.dragging.style.top  = `${y}px`;
 
-    state.moved = true;
     drawLinks();
   });
 
@@ -305,7 +468,6 @@
 
     state.dragging = null;
 
-    // Guardar posición
     try {
       await fetch(`/process-builder/nodo/${id}/position`, {
         method: 'PATCH',
@@ -321,27 +483,25 @@
     }
   });
 
-  // --- relación por puertos (click verde -> click azul) ---
+  // click out -> click in
   const linkMode = { from: null };
 
-  document.querySelectorAll('.node-card .port.out').forEach(port => {
-    port.style.cursor = 'crosshair';
-    port.addEventListener('click', (e) => {
+  canvas.addEventListener('click', async (e)=>{
+    const out = e.target.closest('.port.out');
+    if(out){
       e.stopPropagation();
-      const nodeEl = e.target.closest('.node-card');
+      const nodeEl = out.closest('.node-card');
       linkMode.from = nodeEl.dataset.id;
 
-      // feedback
       document.querySelectorAll('.node-card').forEach(n => n.style.outline = '');
-      nodeEl.style.outline = '2px solid rgba(25,135,84,.6)';
-    });
-  });
+      nodeEl.style.outline = '2px solid rgba(25,135,84,.35)';
+      return;
+    }
 
-  document.querySelectorAll('.node-card .port.in').forEach(port => {
-    port.style.cursor = 'crosshair';
-    port.addEventListener('click', async (e) => {
+    const inn = e.target.closest('.port.in');
+    if(inn){
       e.stopPropagation();
-      const toNodeEl = e.target.closest('.node-card');
+      const toNodeEl = inn.closest('.node-card');
       const toId = toNodeEl.dataset.id;
 
       if (!linkMode.from) return;
@@ -363,14 +523,8 @@
           })
         });
 
-        if (!res.ok) {
-          console.error('No se pudo crear relación');
-          return;
-        }
-
-        const json = await res.json();
-        state.links.push(json.relacion);
-        drawLinks();
+        if (!res.ok) return;
+        await loadGraph();
 
       } catch (err) {
         console.error(err);
@@ -378,19 +532,62 @@
         linkMode.from = null;
         document.querySelectorAll('.node-card').forEach(n => n.style.outline = '');
       }
-    });
+    }
   });
 
-  // --- dibujo de flechas ---
-  function portPoint(nodeEl, kind) {
+  // puertos múltiples solo en decision
+  function ensureDecisionPorts(){
+    state.nodes.forEach((nodeEl, nodeId)=>{
+      const tipo = nodeEl.dataset.tipo;
+
+      nodeEl.querySelectorAll('.port.out[data-rel-id]').forEach(p => p.remove());
+
+      if(tipo !== 'decision') return;
+
+      // quitamos el out base y lo reemplazamos por N outs
+      nodeEl.querySelectorAll('.port.out').forEach(p => p.remove());
+
+      const rels = state.links
+        .filter(l => String(l.nodo_origen_id) === String(nodeId))
+        .sort((a,b)=> (a.prioridad||1) - (b.prioridad||1));
+
+      const baseTop = 22;
+      const step = 22;
+
+      if(rels.length === 0){
+        // deja un out si no tiene relaciones aún
+        const port = document.createElement('span');
+        port.className = 'port out';
+        port.title = 'Salida';
+        port.style.cssText = `position:absolute; right:-7px; top:${baseTop}px;`;
+        nodeEl.appendChild(port);
+        return;
+      }
+
+      rels.forEach((l, idx)=>{
+        const port = document.createElement('span');
+        port.className = 'port out';
+        port.title = l.condicion ? l.condicion : 'Salida';
+        port.dataset.relId = l.id ?? '';
+        port.style.cssText = `position:absolute; right:-7px; top:${baseTop + (idx*step)}px;`;
+        nodeEl.appendChild(port);
+      });
+    });
+  }
+
+  function portPointByEl(nodeEl, portSelector) {
     const nodeRect = nodeEl.getBoundingClientRect();
     const canvasRect = canvas.getBoundingClientRect();
+    const portEl = nodeEl.querySelector(portSelector);
 
-    const x = (kind === 'out')
+    const offsetTop = portEl ? portEl.offsetTop : 22;
+    const isOut = portSelector.includes('.out');
+
+    const x = isOut
       ? (nodeRect.right - canvasRect.left)
       : (nodeRect.left - canvasRect.left);
 
-    const y = (nodeRect.top - canvasRect.top) + 18 + 7;
+    const y = (nodeRect.top - canvasRect.top) + offsetTop + 7;
     return { x, y };
   }
 
@@ -405,8 +602,18 @@
       const to   = state.nodes.get(String(l.nodo_destino_id));
       if (!from || !to) return;
 
-      const p1 = portPoint(from, 'out');
-      const p2 = portPoint(to, 'in');
+      const fromTipo = from.dataset.tipo;
+      let fromSelector = '.port.out';
+
+      if(fromTipo === 'decision' && l.id){
+        fromSelector = `.port.out[data-rel-id="${l.id}"]`;
+        if(!from.querySelector(fromSelector)){
+          fromSelector = '.port.out';
+        }
+      }
+
+      const p1 = portPointByEl(from, fromSelector);
+      const p2 = portPointByEl(to, '.port.in');
 
       const dx = Math.max(80, Math.abs(p2.x - p1.x) * 0.5);
       const c1x = p1.x + dx;
@@ -449,13 +656,15 @@
 
       const json = await res.json();
       state.links = json.relaciones || [];
+
+      ensureDecisionPorts();
       drawLinks();
     } catch (e) {
       console.error('No se pudo cargar el grafo', e);
     }
   }
 
-  window.addEventListener('resize', drawLinks);
+  window.addEventListener('resize', ()=>{ ensureDecisionPorts(); drawLinks(); });
   loadGraph();
 })();
 </script>

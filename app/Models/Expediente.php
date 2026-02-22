@@ -12,9 +12,10 @@ class Expediente extends Model
 
     protected $fillable = [
         'proceso_id',
+        'nodo_actual_id',
         'correlativo',
         'titulo',
-        'estado',      // abierto | en_proceso | cerrado | anulado
+        'estado',      
         'creado_por',
     ];
 
@@ -31,5 +32,9 @@ class Expediente extends Model
     public function items(): HasMany
     {
         return $this->hasMany(ExpedienteItem::class, 'expediente_id');
+    }
+    public function nodoActual(): BelongsTo
+    {
+        return $this->belongsTo(Nodo::class, 'nodo_actual_id');
     }
 }

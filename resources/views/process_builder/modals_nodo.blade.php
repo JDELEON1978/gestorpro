@@ -11,7 +11,6 @@
       </div>
 
       <div class="modal-body">
-
         @if(!$proceso)
           <div class="alert alert-warning">
             No hay proceso seleccionado. Selecciona un proceso antes de crear un nodo.
@@ -49,7 +48,6 @@
           <input class="form-check-input" type="checkbox" name="activo" id="nodo_activo_create" value="1" checked>
           <label class="form-check-label" for="nodo_activo_create">Activo</label>
         </div>
-
       </div>
 
       <div class="modal-footer">
@@ -62,7 +60,7 @@
 
 {{-- Editar Nodo --}}
 <div class="modal fade" id="modalNodoEdit" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog">
+  <div class="modal-dialog modal-lg">
     <form class="modal-content" method="POST" action="#" id="formNodoEdit">
       @csrf @method('PUT')
 
@@ -80,7 +78,7 @@
         <div class="row g-2">
           <div class="col">
             <label class="form-label">Tipo</label>
-            <select class="form-select" name="tipo_nodo" required>
+            <select class="form-select" name="tipo_nodo" id="tipoNodoEdit" required>
               <option value="inicio">inicio</option>
               <option value="actividad">actividad</option>
               <option value="decision">decision</option>
@@ -103,6 +101,47 @@
           <input class="form-check-input" type="checkbox" name="activo" id="nodo_activo_edit" value="1">
           <label class="form-check-label" for="nodo_activo_edit">Activo</label>
         </div>
+
+        <div class="mb-2 mt-2">
+          <label class="form-label">Responsable (Rol)</label>
+          <select class="form-select" name="responsable_rol_id">
+            <option value="">-- Sin asignar --</option>
+            @foreach($roles as $r)
+              <option value="{{ $r->id }}">{{ $r->nombre }}</option>
+            @endforeach
+          </select>
+        </div>
+
+        <div class="mb-2">
+          <label class="form-label">Descripción</label>
+          <textarea class="form-control" name="descripcion" rows="4"></textarea>
+        </div>
+
+        {{-- =========================
+            TRANSICIONES (relaciones)
+           ========================= --}}
+        <div class="mt-3">
+          <div class="border rounded p-3">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <div class="fw-bold">Transiciones (salidas)</div>
+              <button type="button" class="btn btn-sm btn-outline-primary" id="btnAddSalida">
+                + Agregar transición
+              </button>
+            </div>
+
+            <div class="small text-muted mb-2">
+              Una transición = <strong>Etiqueta</strong> (texto que se verá en la flecha) + <strong>Nodo destino</strong>.
+              Si borras una fila y guardas, esa relación debe eliminarse.
+            </div>
+
+            <div id="decisionRows" class="d-flex flex-column gap-2"></div>
+
+            <div class="small text-muted mt-2">
+              Si una fila no tiene etiqueta o destino, se ignora al guardar.
+            </div>
+          </div>
+        </div>
+
       </div>
 
       <div class="modal-footer">

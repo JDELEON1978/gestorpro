@@ -7,30 +7,139 @@ use App\Models\Nodo;
 use App\Models\Item;
 use Illuminate\Http\Request;
 use App\Models\NodoRelacion;
+use Illuminate\Support\Facades\DB;
 
 class ProcessBuilderController extends Controller
 {
-    public function index(?Proceso $proceso = null)
+    public function index($procesoId = null)
     {
-        $procesos = Proceso::query()->orderBy('id', 'desc')->get();
+        $procesos = \App\Models\Proceso::orderByDesc('id')->get();
 
-        // si no viene proceso, toma el primero
-        if (!$proceso && $procesos->count()) {
+        $proceso = null;
+        $nodos = collect();
+        $itemsByCategoria = [
+            'DOCUMENTO'  => collect(),
+            'FORMULARIO' => collect(),
+            'OPERACION'  => collect(),
+        ];
+
+        if ($procesoId) {
+            $proceso = \App\Models\Proceso::findOrFail($procesoId);
+
+            $nodos = \App\Models\Nodo::where('proceso_id', $proceso->id)
+                ->orderBy('orden')
+                ->orderBy('id')
+                ->get();
+
+            $items = \App\Models\Item::where('proceso_id', $proceso->id)
+                ->orderBy('categoria')
+                ->orderBy('nombre')
+                ->get();
+
+            $itemsByCategoria = $items->groupBy('categoria');
+        } else {
             $proceso = $procesos->first();
+            if ($proceso) {
+                return redirect()->to(url('/process-builder/'.$proceso->id));
+            }
         }
 
-        $nodos = $proceso
-            ? Nodo::where('proceso_id', $proceso->id)->orderBy('orden')->get()
-            : collect();
+        // ROLES (tu modelo es Rol)
+        $roles = \App\Models\Rol::orderBy('nombre')->get();
 
-        $items = $proceso
-            ? Item::where('proceso_id', $proceso->id)->orderBy('categoria')->orderBy('nombre')->get()
-            : collect();
-
-        $itemsByCategoria = $items->groupBy('categoria');
-
-        return view('process_builder.index', compact('procesos', 'proceso', 'nodos', 'itemsByCategoria'));
+        return view('process_builder.index', [
+            'procesos' => $procesos,
+            'proceso' => $proceso,
+            'nodos' => $nodos,
+            'itemsByCategoria' => $itemsByCategoria,
+            'roles' => $roles,
+        ]);
     }
+
+public function guardarRelacionesNodo(Request $request, Nodo $nodo)
+{
+    // OJO: "present|array" permite []
+    $data = $request->validate([
+        'relaciones' => ['present','array'],
+
+        // si viene id, validarlo
+        'relaciones.*.id' => ['nullable','integer','exists:nodo_relaciones,id'],
+
+        // condicion:
+        // - para decision: requerida
+        // - para otros: opcional
+        'relaciones.*.condicion' => ['nullable','string','max:255'],
+
+        'relaciones.*.nodo_destino_id' => ['required','integer','exists:nodos,id','different:'.$nodo->id],
+        'relaciones.*.prioridad' => ['nullable','integer','min:1','max:999'],
+    ]);
+
+    // Validación condicional: si el nodo es decision, obligar condicion
+    if ($nodo->tipo_nodo === 'decision') {
+        foreach (($data['relaciones'] ?? []) as $i => $r) {
+            if (empty(trim((string)($r['condicion'] ?? '')))) {
+                return response()->json([
+                    'message' => 'La condición es obligatoria para nodos tipo decision.',
+                    'errors' => ["relaciones.$i.condicion" => ['La condición es obligatoria.']]
+                ], 422);
+            }
+        }
+    }
+
+    DB::transaction(function() use ($data, $nodo) {
+
+        $idsRecibidos = collect($data['relaciones'])
+            ->pluck('id')
+            ->filter()
+            ->values();
+
+        // Relaciones actuales de ese nodo
+        $q = NodoRelacion::query()
+            ->where('proceso_id', $nodo->proceso_id)
+            ->where('nodo_origen_id', $nodo->id);
+
+        // Si NO vienen ids => BORRA TODAS (eso es lo que tú quieres al eliminar todas en el modal)
+        if ($idsRecibidos->count() > 0) {
+            $q->whereNotIn('id', $idsRecibidos);
+        }
+
+        $q->delete();
+
+        // Re-crear / actualizar
+        foreach ($data['relaciones'] as $r) {
+            $attrs = [
+                'proceso_id'      => $nodo->proceso_id,
+                'nodo_origen_id'  => $nodo->id,
+                'nodo_destino_id' => $r['nodo_destino_id'],
+                'condicion'       => $r['condicion'] ?? null,
+                'prioridad'       => $r['prioridad'] ?? 1,
+            ];
+
+            if (!empty($r['id'])) {
+                NodoRelacion::query()
+                    ->where('id', $r['id'])
+                    ->where('proceso_id', $nodo->proceso_id)
+                    ->where('nodo_origen_id', $nodo->id)
+                    ->update($attrs);
+            } else {
+                NodoRelacion::query()->create($attrs);
+            }
+        }
+    });
+
+    return response()->json(['ok' => true]);
+}
+
+public function relacionesNodo(Nodo $nodo)
+{
+    $rels = NodoRelacion::query()
+        ->where('proceso_id', $nodo->proceso_id)
+        ->where('nodo_origen_id', $nodo->id)
+        ->orderBy('prioridad')
+        ->get(['id','condicion','nodo_destino_id','prioridad']);
+
+    return response()->json(['relaciones' => $rels]);
+}
     
     public function graph(Proceso $proceso)
     {
@@ -131,6 +240,8 @@ public function storeNodo(Request $r, Proceso $proceso)
         'orden' => 'nullable|integer|min:1',
         'sla_horas' => 'nullable|integer|min:0',
         'activo' => 'nullable|boolean',
+        'responsable_rol_id' => 'nullable|integer|exists:roles,id',
+        'descripcion' => 'nullable|string|max:5000',
     ]);
 
     $data['proceso_id'] = $proceso->id;
@@ -155,6 +266,8 @@ public function storeNodo(Request $r, Proceso $proceso)
             'orden' => 'nullable|integer|min:1',
             'sla_horas' => 'nullable|integer|min:0',
             'activo' => 'nullable|boolean',
+            'responsable_rol_id' => 'nullable|integer|exists:roles,id',
+            'descripcion' => 'nullable|string|max:5000',
         ]);
 
         $data['activo'] = $r->boolean('activo', true);

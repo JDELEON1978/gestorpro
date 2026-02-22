@@ -35,4 +35,5 @@ class NodoRelacion extends Model
     {
         return $this->belongsTo(Nodo::class, 'nodo_destino_id');
     }
+
 }
