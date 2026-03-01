@@ -17,6 +17,7 @@ class ProcessBuilderController extends Controller
 
         $proceso = null;
         $nodos = collect();
+         $items = collect();
         $itemsByCategoria = [
             'DOCUMENTO'  => collect(),
             'FORMULARIO' => collect(),
@@ -143,7 +144,7 @@ public function guardarRelacionesNodo(Request $request, Nodo $nodo)
                 'nombre' => $it->nombre,
                 'categoria' => $it->categoria,
                 'requiere_evidencia' => (bool)$it->requiere_evidencia,
-                'allowed_extensions'=> $it->nombre,
+                'allowed_extensions'=> $it->allowed_extensions,
                 'obligatorio' => (int)($it->pivot->obligatorio ?? 1),
             ]);
 
