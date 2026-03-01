@@ -9,19 +9,20 @@ return new class extends Migration
     /**
      * Run the migrations.
      */
-public function up(): void
-{
-    Schema::table('nodo_items', function (Blueprint $table) {
-        $table->foreign('nodo_id')->references('id')->on('nodos')->onDelete('cascade');
-        $table->foreign('item_id')->references('id')->on('items')->onDelete('cascade');
-    });
-}
+        public function up(): void
+        {
+            Schema::table('nodo_items', function (Blueprint $table) {
+                //
+            });
+        }
 
-public function down(): void
-{
-    Schema::table('nodo_items', function (Blueprint $table) {
-        $table->dropForeign(['nodo_id']);
-        $table->dropForeign(['item_id']);
-    });
-}
+        /**
+         * Reverse the migrations.
+         */
+        public function down(): void
+        {
+            Schema::table('nodo_items', function (Blueprint $table) {
+                //
+            });
+        }
 };

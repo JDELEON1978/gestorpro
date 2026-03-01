@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Project;
 use Illuminate\Http\Request;
+use App\Models\Proceso;
 
 class DashboardController extends Controller
 {
@@ -56,6 +57,7 @@ class DashboardController extends Controller
                 $tasksByStatus[$st->id] = $tasks->where('status_id', $st->id)->values();
             }
         }
+        $procesos = Proceso::orderBy('nombre')->get();
 
         return view('dashboard', compact(
             'workspaces',
@@ -63,7 +65,8 @@ class DashboardController extends Controller
             'statuses',
             'tasksByStatus',
             'viewMode',
-            'tasks'
+            'tasks',
+            'procesos'
         ));
     }
 }

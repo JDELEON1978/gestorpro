@@ -10,6 +10,8 @@ use App\Http\Controllers\ProjectStatusController;
 use App\Http\Controllers\TaskFileController;
 use App\Http\Controllers\ProcessBuilderController;
 use App\Http\Controllers\ExpedienteController;
+use App\Http\Controllers\UserRoleController;
+use App\Http\Controllers\TaskEvidenceController;
 
 Route::get('/', function () {
     return redirect()->route('dashboard');
@@ -45,6 +47,10 @@ Route::middleware(['auth'])->group(function () {
     | Process Builder
     |--------------------------------------------------------------------------
     */
+    Route::get('/process-builder/item/{item}/examples', [\App\Http\Controllers\ItemExampleFileController::class, 'index']);
+    Route::post('/process-builder/item/{item}/examples', [\App\Http\Controllers\ItemExampleFileController::class, 'store']);
+    Route::get('/process-builder/item-examples/{file}/download', [\App\Http\Controllers\ItemExampleFileController::class, 'download']);
+    Route::delete('/process-builder/item-examples/{file}', [\App\Http\Controllers\ItemExampleFileController::class, 'destroy']);
 
     // Vista principal (selector de proceso + canvas)
     Route::get('/process-builder/{proceso?}', [ProcessBuilderController::class, 'index'])
@@ -70,6 +76,8 @@ Route::middleware(['auth'])->group(function () {
 
     Route::patch('/process-builder/nodo/{nodo}/port', [ProcessBuilderController::class, 'updateNodoPort'])->name('builder.nodo.port');
 
+    Route::get('/process-builder/nodo/{nodo}/items', [ProcessBuilderController::class, 'itemsNodo'])
+    ->name('builder.nodo.items.index');
 
     // Grafo
     Route::get('/process-builder/{proceso}/graph', [ProcessBuilderController::class, 'graph'])
@@ -103,71 +111,55 @@ Route::middleware(['auth'])->group(function () {
     | Expedientes
     |--------------------------------------------------------------------------
     */
-    Route::get('/expedientes', [ExpedienteController::class, 'index'])
-        ->name('expedientes.index');
+    Route::get('/expedientes', [ExpedienteController::class, 'index'])->name('expedientes.index');
 
-    Route::post('/expedientes', [ExpedienteController::class, 'store'])
-        ->name('expedientes.store');
+    Route::post('/expedientes', [ExpedienteController::class, 'store'])->name('expedientes.store');
 
-    Route::get('/expedientes/{expediente}', [ExpedienteController::class, 'show'])
-        ->name('expedientes.show');
+    Route::get('/expedientes/{expediente}', [ExpedienteController::class, 'show'])->name('expedientes.show');
 
-    Route::post('/expedientes/{expediente}/transition', [ExpedienteController::class, 'transition'])
-        ->name('expedientes.transition');
+    Route::post('/expedientes/{expediente}/transition', [ExpedienteController::class, 'transition'])->name('expedientes.transition');
 
-    Route::get('/expedientes/{expediente}/can-transition', [ExpedienteController::class, 'canTransition'])
-        ->name('expedientes.can_transition');
+    Route::get('/expedientes/{expediente}/can-transition', [ExpedienteController::class, 'canTransition'])->name('expedientes.can_transition');
 
-    Route::post('/expediente-items/{expedienteItem}/evidencias', [ExpedienteController::class, 'uploadEvidencia'])
-        ->name('expediente_items.evidencias.store');
+    Route::post('/expediente-items/{expedienteItem}/evidencias', [ExpedienteController::class, 'uploadEvidencia'])->name('expediente_items.evidencias.store');
 
-    Route::post('/expediente-items/{expedienteItem}/review', [ExpedienteController::class, 'reviewItem'])
-        ->name('expediente_items.review');
+    Route::post('/expediente-items/{expedienteItem}/review', [ExpedienteController::class, 'reviewItem'])->name('expediente_items.review');
 
     /*
     |--------------------------------------------------------------------------
     | Projects / Tasks
     |--------------------------------------------------------------------------
     */
-    Route::get('/workspaces/{workspace}/projects', [ProjectController::class, 'index'])
-        ->name('workspaces.projects.index');
-
-    Route::get('/workspaces/{workspace}/projects/create', [ProjectController::class, 'create'])
-        ->name('workspaces.projects.create');
-
-    Route::post('/workspaces/{workspace}/projects', [ProjectController::class, 'store'])
-        ->name('workspaces.projects.store');
-
-    Route::get('/projects/{project}/tasks', [TaskController::class, 'index'])
-        ->name('projects.tasks.index');
-
-    Route::get('/projects/{project}/tasks/create', [TaskController::class, 'create'])
-        ->name('projects.tasks.create');
-
-    Route::post('/projects/{project}/tasks', [TaskController::class, 'store'])
-        ->name('projects.tasks.store');
-
-    Route::patch('/tasks/{task}/move', [TaskController::class, 'move'])
-        ->name('tasks.move');
-
-    Route::patch('/tasks/{task}', [TaskController::class, 'update'])
-        ->name('tasks.update');
-
-    Route::post('/projects/{project}/statuses', [ProjectStatusController::class, 'store'])
-        ->name('projects.statuses.store');
-
+    Route::get('/workspaces/{workspace}/projects', [ProjectController::class, 'index'])->name('workspaces.projects.index');
+    Route::get('/workspaces/{workspace}/projects/create', [ProjectController::class, 'create'])->name('workspaces.projects.create');
+    Route::post('/workspaces/{workspace}/projects', [ProjectController::class, 'store'])->name('workspaces.projects.store');
+    Route::get('/projects/{project}/tasks', [TaskController::class, 'index'])->name('projects.tasks.index');
+    Route::get('/projects/{project}/tasks/create', [TaskController::class, 'create'])->name('projects.tasks.create');
+    Route::post('/projects/{project}/tasks', [TaskController::class, 'store'])->name('projects.tasks.store');
+    Route::get('/projects/{project}/start-node', [ProjectController::class, 'startNode'])->name('projects.start_node');
+    Route::patch('/tasks/{task}/move', [TaskController::class, 'move'])->name('tasks.move');
+    Route::patch('/tasks/{task}', [TaskController::class, 'update'])->name('tasks.update');
+    Route::post('/projects/{project}/statuses', [ProjectStatusController::class, 'store'])->name('projects.statuses.store');
     // Task files
-    Route::get('/tasks/{task}/files', [TaskFileController::class, 'index'])
-        ->name('tasks.files.index');
+    Route::get('/tasks/{task}/files', [TaskFileController::class, 'index'])->name('tasks.files.index');
+    Route::post('/tasks/{task}/files', [TaskFileController::class, 'store'])->name('tasks.files.store');
+    Route::get('/tasks/{task}/files/{file}/download', [TaskFileController::class, 'download'])->name('tasks.files.download');
+    Route::delete('/tasks/{task}/files/{file}', [TaskFileController::class, 'destroy'])->name('tasks.files.destroy');
+    Route::post('/tasks/{task}/advance', [TaskController::class, 'advance'])->name('tasks.advance');
+    Route::get('/tasks/{task}/evidences', [TaskEvidenceController::class, 'index']);
+    Route::post('/tasks/{task}/evidences/{item}', [TaskEvidenceController::class, 'store']);
 
-    Route::post('/tasks/{task}/files', [TaskFileController::class, 'store'])
-        ->name('tasks.files.store');
+    /*
+    |--------------------------------------------------------------------------
+    | User
+    |--------------------------------------------------------------------------
+    */
+    Route::get('/admin/user-roles', [UserRoleController::class, 'index'])
+        ->name('admin.user_roles.index');
+    Route::put('/admin/user-roles/{user}', [UserRoleController::class, 'update'])
+        ->name('admin.user_roles.update');
+    
 
-    Route::get('/tasks/{task}/files/{file}/download', [TaskFileController::class, 'download'])
-        ->name('tasks.files.download');
-
-    Route::delete('/tasks/{task}/files/{file}', [TaskFileController::class, 'destroy'])
-        ->name('tasks.files.destroy');
 });
 
 require __DIR__ . '/auth.php';

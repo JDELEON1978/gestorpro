@@ -5,6 +5,20 @@
 
         <form class="mt-6 space-y-4" method="POST" action="{{ route('workspaces.projects.store', $workspace) }}">
             @csrf
+            <div>
+            <label class="block text-sm font-medium">Proceso</label>
+            <select name="proceso_id" class="mt-1 w-full border rounded p-2" required>
+                <option value="">-- Selecciona un proceso --</option>
+                @foreach($procesos as $p)
+                <option value="{{ $p->id }}" @selected(old('proceso_id') == $p->id)>
+                    {{ $p->nombre }} ({{ $p->codigo }})
+                </option>
+                @endforeach
+            </select>
+            @error('proceso_id')
+            <div class="text-sm text-red-600 mt-1">{{ $message }}</div>
+            @enderror
+            </div>
 
             <div>
                 <label class="block text-sm font-medium">Nombre</label>

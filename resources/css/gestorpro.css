@@ -229,6 +229,8 @@ body{ overflow-x: hidden; }
 }
 .gp-add:hover{ background: rgba(255,255,255,0.9); }
 
+#modalItemEdit .modal-dialog{ max-width: 980px; }
+#modalItemEdit .modal-body{ max-height: 72vh; overflow:auto; }
 
 /* === GestorPro UI Kit: Forms & Variants === */
 .gp-input, .gp-select, .gp-textarea{

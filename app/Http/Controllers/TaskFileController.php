@@ -99,6 +99,7 @@ public function index(Task $task)
 
         return Storage::disk('public')->download($file->path, $file->original_name);
     }
+    
 
     public function destroy(Task $task, TaskFile $file)
     {

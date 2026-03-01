@@ -11,13 +11,18 @@ class Expediente extends Model
     protected $table = 'expedientes';
 
     protected $fillable = [
+        'project_id',
         'proceso_id',
         'nodo_actual_id',
         'correlativo',
         'titulo',
-        'estado',      
+        'estado',
         'creado_por',
     ];
+    public function project(): BelongsTo
+    {
+        return $this->belongsTo(Project::class, 'project_id');
+    }
 
     public function proceso(): BelongsTo
     {
@@ -36,5 +41,9 @@ class Expediente extends Model
     public function nodoActual(): BelongsTo
     {
         return $this->belongsTo(Nodo::class, 'nodo_actual_id');
+    }
+    public function transiciones(): HasMany
+    {
+        return $this->hasMany(ExpedienteTransicion::class, 'expediente_id');
     }
 }

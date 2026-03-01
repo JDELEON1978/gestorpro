@@ -15,6 +15,7 @@ class Project extends Model
      */
     protected $fillable = [
         'workspace_id',
+        'proceso_id',
         'name',
         'slug',
         'description',
@@ -46,6 +47,10 @@ class Project extends Model
     {
         return $this->hasMany(Task::class);
     }
+    public function proceso(): BelongsTo
+        {
+            return $this->belongsTo(\App\Models\Proceso::class, 'proceso_id');
+        }
 
     /**
      * Al crear un proyecto se crean columnas default.

@@ -34,12 +34,16 @@ class Nodo extends Model
 
     public function items()
     {
-        // Relación directa para poder usar sync() fácil
+        /**
+         * Relación Many-to-Many: Nodo <-> Item
+         * Tabla pivote: nodo_items
+         * Pivot extra: obligatorio (tinyint/boolean)
+         */
         return $this->belongsToMany(Item::class, 'nodo_items', 'nodo_id', 'item_id')
-            ->withPivot(['obligatorio'])
+            ->withPivot('obligatorio')
             ->withTimestamps();
     }
-    
+
     public function proceso(): BelongsTo
     {
         return $this->belongsTo(Proceso::class, 'proceso_id');
@@ -59,9 +63,12 @@ class Nodo extends Model
     {
         return $this->hasMany(NodoItem::class, 'nodo_id');
     }
+
+
     public function responsableRol()
     {
-        return $this->belongsTo(Role::class, 'responsable_rol_id');
+        // OJO: tú usas modelo Rol (no Role)
+        return $this->belongsTo(Rol::class, 'responsable_rol_id');
     }
     
 }

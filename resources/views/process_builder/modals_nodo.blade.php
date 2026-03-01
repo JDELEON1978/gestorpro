@@ -116,6 +116,37 @@
           <label class="form-label">Descripción</label>
           <textarea class="form-control" name="descripcion" rows="4"></textarea>
         </div>
+        {{-- =========================
+          COMPONENTES DEL NODO (Items)
+          UI tipo "Transiciones" para que sea escalable
+        ========================= --}}
+
+        <div class="mt-3">
+          <div class="border rounded p-3">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <div class="fw-bold">Componentes del Nodo (Documentos · Formularios · Operaciones)</div>
+              <button type="button" class="btn btn-sm btn-outline-primary" id="btnAddNodoItem">
+                + Agregar item
+              </button>
+            </div>
+
+            <div class="small text-muted mb-2">
+              Agrega filas. Cada fila define: <strong>Item</strong> + si es <strong>obligatorio</strong>.
+              Al guardar, el sistema sincroniza la tabla <code>nodo_items</code>.
+            </div>
+
+            {{-- Aquí se renderizan filas --}}
+            <div id="nodoItemRows" class="d-flex flex-column gap-2"></div>
+
+            {{-- ✅ Este hidden lleva el JSON al backend --}}
+            <input type="hidden" name="items_payload" id="itemsPayload" value="[]">
+
+            <div class="small text-muted mt-2">
+              Si una fila no tiene item seleccionado, se ignora.
+            </div>
+          </div>
+        </div>
+
 
         {{-- =========================
             TRANSICIONES (relaciones)

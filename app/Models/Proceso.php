@@ -21,6 +21,7 @@ class Proceso extends Model
         'estado' => 'boolean',
     ];
 
+
     public function nodos(): HasMany
     {
         return $this->hasMany(Nodo::class, 'proceso_id');

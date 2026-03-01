@@ -17,11 +17,13 @@ class Item extends Model
         'tipo_id',
         'requiere_evidencia',
         'activo',
+        'allowed_extensions'
     ];
 
     protected $casts = [
         'requiere_evidencia' => 'boolean',
         'activo' => 'boolean',
+        'allowed_extensions' => 'array',
     ];
     
     public function nodos()
@@ -29,6 +31,10 @@ class Item extends Model
         return $this->belongsToMany(Nodo::class, 'nodo_items', 'item_id', 'nodo_id')
             ->withPivot(['obligatorio'])
             ->withTimestamps();
+    }
+    public function exampleFiles()
+    {
+        return $this->hasMany(ItemExampleFile::class, 'item_id')->orderByDesc('id');
     }
 
     public function proceso(): BelongsTo

@@ -27,6 +27,7 @@
     cursor: grab;
   }
   .gp-card:active{ cursor: grabbing; }
+  .gp-card.dragging{ opacity: .6; } /* ✅ visible feedback */
   .gp-card-title{ font-weight: 800; font-size: 13px; margin-bottom: 6px; }
   .gp-card-meta{ font-size: 12px; opacity: .75; display:flex; gap:10px; flex-wrap:wrap; }
   .gp-dropzone.drag-over{
@@ -38,59 +39,64 @@
 
 <div class="gp-kanban" id="gpKanban">
 
-  @foreach($statuses as $st)
-    @php
-      $list = $tasksByStatus[$st->id] ?? collect();
-      $count = is_countable($list) ? count($list) : $list->count();
-    @endphp
+@foreach($statuses as $st)
+  @php
+    $list  = $tasksByStatus[$st->id] ?? collect();
+    $count = is_countable($list) ? count($list) : $list->count();
+  @endphp
 
-    <div class="gp-panel gp-col">
-      <div class="gp-col-head">
-        <div class="gp-col-title">{{ $st->name }}</div>
-        <div class="gp-col-count">{{ $count }}</div>
-      </div>
-
-      <div class="gp-dropzone"
-           data-status-id="{{ $st->id }}">
-        @foreach($list as $t)
-          @php
-            // Payload para modal editar (igual que ya usas)
-            $payload = [
-              'id' => $t->id,
-              'title' => $t->title,
-              'description' => $t->description,
-              'status_id' => $t->status_id,
-              'priority' => $t->priority,
-              'start_at' => $t->start_at ? \Illuminate\Support\Carbon::parse($t->start_at)->format('Y-m-d') : null,
-              'due_at' => $t->due_at ? \Illuminate\Support\Carbon::parse($t->due_at)->format('Y-m-d') : null,
-            ];
-            $payloadJson = json_encode(
-              $payload,
-              JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT
-            );
-          @endphp
-
-          <div class="gp-card js-task"
-               draggable="true"
-               data-task-id="{{ $t->id }}"
-               data-task="{{ $payloadJson }}">
-            <div class="gp-card-title text-truncate">{{ $t->title }}</div>
-            <div class="gp-card-meta">
-              @if($t->priority)
-                <span><i class="bi bi-flag"></i> P{{ $t->priority }}</span>
-              @endif
-              @if($t->start_at)
-                <span><i class="bi bi-play"></i> {{ \Illuminate\Support\Carbon::parse($t->start_at)->format('Y-m-d') }}</span>
-              @endif
-              @if($t->due_at)
-                <span><i class="bi bi-calendar2-check"></i> {{ \Illuminate\Support\Carbon::parse($t->due_at)->format('Y-m-d') }}</span>
-              @endif
-            </div>
-          </div>
-        @endforeach
-      </div>
+  <div class="gp-panel gp-col">
+    <div class="gp-col-head">
+      <div class="gp-col-title">{{ $st->name }}</div>
+      <div class="gp-col-count">{{ $count }}</div>
     </div>
-  @endforeach
+
+    <div class="gp-dropzone" data-status-id="{{ $st->id }}">
+      @foreach($list as $t)
+        @php
+          // Payload para modal editar (incluye nodo_id para cargar items/transiciones)
+          $payload = [
+            'id'          => $t->id,
+            'project_id'  => $t->project_id, // opcional, útil si luego lo necesitas
+            'nodo_id'     => $t->nodo_id,    // ✅ CLAVE
+            'title'       => $t->title,
+            'description' => $t->description,
+            'status_id'   => $t->status_id,
+            'priority'    => $t->priority,
+            'start_at'    => $t->start_at ? \Illuminate\Support\Carbon::parse($t->start_at)->format('Y-m-d') : null,
+            'due_at'      => $t->due_at ? \Illuminate\Support\Carbon::parse($t->due_at)->format('Y-m-d') : null,
+          ];
+
+          $payloadJson = json_encode(
+            $payload,
+            JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT
+          );
+        @endphp
+
+        <div class="gp-card js-task"
+             draggable="true"
+             data-task-id="{{ $t->id }}"
+             data-task="{{ $payloadJson }}">
+          <div class="gp-card-title text-truncate">{{ $t->title }}</div>
+
+          <div class="gp-card-meta">
+            @if($t->priority)
+              <span><i class="bi bi-flag"></i> P{{ $t->priority }}</span>
+            @endif
+
+            @if($t->start_at)
+              <span><i class="bi bi-play"></i> {{ \Illuminate\Support\Carbon::parse($t->start_at)->format('Y-m-d') }}</span>
+            @endif
+
+            @if($t->due_at)
+              <span><i class="bi bi-calendar2-check"></i> {{ \Illuminate\Support\Carbon::parse($t->due_at)->format('Y-m-d') }}</span>
+            @endif
+          </div>
+        </div>
+      @endforeach
+    </div>
+  </div>
+@endforeach
 
 </div>
 
@@ -159,15 +165,6 @@
     }
   });
 
-  document.addEventListener('dragleave', (e) => {
-    const zone = e.target.closest('.gp-dropzone');
-    if (!zone) return;
-    // si sales del contenedor, limpia estilo
-    // (no siempre perfecto en HTML5 DnD, pero sirve)
-    // zone.classList.remove('drag-over');
-  });
-
-  // Drop => guardar en servidor
   document.addEventListener('drop', async (e) => {
     const zone = e.target.closest('.gp-dropzone');
     if (!zone || !draggingEl) return;
@@ -197,7 +194,6 @@
       });
 
       if(!res.ok){
-        // Revert simple: recargar área del proyecto si existe tu función
         console.error('No se pudo mover la tarea');
         if (typeof refreshProjectArea === 'function') {
           await refreshProjectArea();
@@ -207,8 +203,7 @@
         return;
       }
 
-      // Si también cambió de columna, conviene actualizar contadores:
-      // MVP: recargar solo el área, así no se desincroniza.
+      // Para no desincronizar contadores/orden
       if (typeof refreshProjectArea === 'function') {
         await refreshProjectArea();
       }
@@ -223,7 +218,6 @@
     }
   });
 
-  // Helper: busca el elemento después del cual insertar según Y
   function getDragAfterElement(container, y) {
     const draggableElements = [...container.querySelectorAll('.gp-card:not(.dragging)')];
 

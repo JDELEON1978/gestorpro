@@ -134,9 +134,13 @@
               {{-- ICONO EDITAR --}}
               <button type="button"
                       class="btn btn-sm btn-light node-edit"
-                      style="position:absolute; right:8px; top:8px; padding:2px 6px;"
-                      data-bs-toggle="modal" data-bs-target="#modalNodoEdit"
+                      data-bs-toggle="modal"
+                      data-bs-target="#modalNodoEdit"
+
+                      {{--  ESTE ES EL MÁS IMPORTANTE --}}
                       data-id="{{ $n->id }}"
+
+                      {{-- opcionales, para prellenar --}}
                       data-nombre="{{ $n->nombre }}"
                       data-tipo="{{ $n->tipo_nodo }}"
                       data-orden="{{ $n->orden }}"
@@ -185,14 +189,15 @@
                       @endif
                     </div>
                     <button class="btn btn-sm btn-link"
-                            data-bs-toggle="modal" data-bs-target="#modalItemEdit"
-                            data-id="{{ $it->id }}"
-                            data-nombre="{{ $it->nombre }}"
-                            data-categoria="{{ $it->categoria }}"
-                            data-evidencia="{{ $it->requiere_evidencia ? 1 : 0 }}"
-                            data-activo="{{ $it->activo ? 1 : 0 }}">
-                      Editar
-                    </button>
+                        data-bs-toggle="modal" data-bs-target="#modalItemEdit"
+                        data-id="{{ $it->id }}"
+                        data-nombre="{{ $it->nombre }}"
+                        data-categoria="{{ $it->categoria }}"
+                        data-evidencia="{{ $it->requiere_evidencia ? 1 : 0 }}"
+                        data-activo="{{ $it->activo ? 1 : 0 }}"
+                        data-allowed="{{ is_array($it->allowed_extensions) ? implode(',', $it->allowed_extensions) : '' }}">
+                  Editar
+                </button>
                   </div>
                 @endforeach
               </div>
@@ -215,18 +220,29 @@
 <script>
 /**
  * ============================================================
- * Modales: set action + rellenar campos
+ * Modales: set action + rellenar campos + Item examples upload
  * ============================================================
  */
 (function(){
   const setAction = (form, url) => form.setAttribute('action', url);
+  const CSRF = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
+  function escapeHtml(s){
+    return (s ?? '').toString().replace(/[&<>"']/g, m => ({
+      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'
+    }[m]));
+  }
+
+  // ============================================================
   // Proceso edit
+  // ============================================================
   const mProceso = document.getElementById('modalProcesoEdit');
   if(mProceso){
     mProceso.addEventListener('show.bs.modal', (ev)=>{
       const b = ev.relatedTarget;
       const form = mProceso.querySelector('form');
+      if(!b || !form) return;
+
       setAction(form, `{{ url('/process-builder/proceso') }}/${b.dataset.id}`);
 
       form.querySelector('[name=nombre]').value = b.dataset.nombre || '';
@@ -237,12 +253,16 @@
     });
   }
 
+  // ============================================================
   // Nodo edit
+  // ============================================================
   const mNodo = document.getElementById('modalNodoEdit');
   if(mNodo){
     mNodo.addEventListener('show.bs.modal', (ev)=>{
       const b = ev.relatedTarget;
       const form = mNodo.querySelector('form');
+      if(!b || !form) return;
+
       setAction(form, `{{ url('/process-builder/nodo') }}/${b.dataset.id}`);
 
       form.querySelector('[name=nombre]').value = b.dataset.nombre || '';
@@ -255,23 +275,162 @@
     });
   }
 
-  // Item edit
+  // ============================================================
+  // Item edit + Examples upload (NO form anidado)
+  // ============================================================
   const mItem = document.getElementById('modalItemEdit');
   if(mItem){
+    const listWrap      = document.getElementById('itemExampleList');
+    const inputExamples = document.getElementById('itemExamplesInput');
+    const btnUpload     = document.getElementById('btnUploadItemExamples');
+
+    async function loadExamples(itemId){
+      if(!listWrap) return;
+
+      listWrap.innerHTML = `<div class="text-muted small">Cargando...</div>`;
+
+      try{
+        const res = await fetch(`/process-builder/item/${itemId}/examples`, {
+          headers: { 'Accept':'application/json' }
+        });
+
+        if(!res.ok){
+          const t = await res.text();
+          console.error('loadExamples error:', t);
+          listWrap.innerHTML = `<div class="text-danger small">No se pudo cargar la lista.</div>`;
+          return;
+        }
+
+        const json = await res.json();
+        const files = json.files || [];
+
+        if(!files.length){
+          listWrap.innerHTML = `<div class="text-muted small">No hay archivos de ejemplo aún.</div>`;
+          return;
+        }
+
+        listWrap.innerHTML = files.map(f => `
+          <div class="d-flex justify-content-between align-items-center border rounded p-2 mb-1">
+            <div class="small">
+              <div class="fw-semibold">${escapeHtml(f.original_name)}</div>
+              <div class="text-muted">${escapeHtml(f.created_at || '')}</div>
+            </div>
+            <div class="d-flex gap-2">
+              <a class="btn btn-sm btn-outline-secondary" href="${f.download_url}">Descargar</a>
+              <button class="btn btn-sm btn-outline-danger" type="button" data-del="${f.delete_url}">Eliminar</button>
+            </div>
+          </div>
+        `).join('');
+
+      }catch(e){
+        console.error('loadExamples exception:', e);
+        listWrap.innerHTML = `<div class="text-danger small">No se pudo cargar la lista.</div>`;
+      }
+    }
+
+    // Click Subir (AJAX) -> NO cierra modal
+    btnUpload?.addEventListener('click', async (e)=>{
+      e.preventDefault();
+      e.stopPropagation();
+
+      const itemId = mItem.dataset.itemId;
+      if(!itemId){
+        alert('No se detectó itemId. Abre el modal desde "Editar" del item.');
+        return;
+      }
+
+      const files = inputExamples?.files ? Array.from(inputExamples.files) : [];
+      if(!files.length){
+        alert('Selecciona uno o más archivos.');
+        return;
+      }
+
+      const fd = new FormData();
+      files.forEach(f => fd.append('examples[]', f));
+
+      try{
+        const res = await fetch(`/process-builder/item/${itemId}/examples`, {
+          method:'POST',
+          headers:{
+            'X-CSRF-TOKEN': CSRF,
+            'Accept':'application/json',
+          },
+          body: fd
+        });
+
+        if(!res.ok){
+          const t = await res.text();
+          console.error('upload error:', t);
+          alert('Error al subir archivos (revisa consola / Network).');
+          return;
+        }
+
+        if(inputExamples) inputExamples.value = '';
+        await loadExamples(itemId);
+
+      }catch(err){
+        console.error('upload exception:', err);
+        alert('No se pudo subir.');
+      }
+    });
+
+    // Eliminar
+    listWrap?.addEventListener('click', async (e)=>{
+      const btn = e.target.closest('button[data-del]');
+      if(!btn) return;
+
+      if(!confirm('¿Eliminar este archivo de ejemplo?')) return;
+
+      try{
+        const res = await fetch(btn.dataset.del, {
+          method:'DELETE',
+          headers:{
+            'X-CSRF-TOKEN': CSRF,
+            'Accept':'application/json'
+          }
+        });
+
+        if(res.ok){
+          await loadExamples(mItem.dataset.itemId);
+        }else{
+          const t = await res.text();
+          console.error('delete error:', t);
+          alert('No se pudo eliminar.');
+        }
+      }catch(err){
+        console.error('delete exception:', err);
+        alert('No se pudo eliminar.');
+      }
+    });
+
+    // Al abrir modal: set action + prellenar + set itemId + load examples
     mItem.addEventListener('show.bs.modal', (ev)=>{
       const b = ev.relatedTarget;
       const form = mItem.querySelector('form');
-      setAction(form, `{{ url('/process-builder/item') }}/${b.dataset.id}`);
+      if(!b || !form) return;
+
+      const itemId = b.dataset.id;
+      mItem.dataset.itemId = itemId;
+
+      setAction(form, `{{ url('/process-builder/item') }}/${itemId}`);
 
       form.querySelector('[name=nombre]').value = b.dataset.nombre || '';
       form.querySelector('[name=categoria]').value = b.dataset.categoria || 'DOCUMENTO';
       form.querySelector('[name=requiere_evidencia]').checked = (b.dataset.evidencia == '1');
       form.querySelector('[name=activo]').checked = (b.dataset.activo == '1');
+
+      // allowed_extensions_csv (viene del data-allowed del botón)
+      const allowedInput = form.querySelector('[name=allowed_extensions_csv]');
+      if(allowedInput){
+        allowedInput.value = b.dataset.allowed || '';
+      }
+
+      loadExamples(itemId);
     });
   }
+
 })();
 </script>
-
 <script>
 /**
  * ============================================================
@@ -279,8 +438,44 @@
  * - Siempre sincroniza relaciones ANTES de submit
  * ============================================================
  */
+
+/**
+ * ============================================================
+ * MODAL EDITAR NODO - UNIFICADO
+ * ============================================================
+ * Objetivo:
+ * - Mantener UI escalable para ITEMS (Documentos/Formularios/Operaciones)
+ * - Mantener UI de TRANSICIONES (Relaciones) tipo "Transiciones"
+ * - Guardar TODO en una sola acción sin perder nada.
+ *
+ * Flujo al abrir modal:
+ *   A) Carga relaciones del nodo (transiciones) => /nodo/{id}/relaciones
+ *   B) Carga items del nodo (documentos/formularios/operaciones) => /nodo/{id}/items
+ *
+ * Flujo al guardar (submit):
+ *   1) previene submit normal
+ *   2) arma JSON items => lo mete en hidden items_payload
+ *   3) arma JSON relaciones => POST /nodo/{id}/relaciones
+ *   4) si OK => hace submit real del form (PUT /nodo/{id}) para guardar campos del nodo + sync items
+ * ============================================================
+ */
 (function(){
   const CSRF = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+
+  const modal = document.getElementById('modalNodoEdit');
+  if(!modal) return;
+
+  const form = document.getElementById('formNodoEdit');
+  if(!form) return;
+
+  // =========================
+  // SECCIÓN A: TRANSICIONES
+  // =========================
+  const decisionRows = document.getElementById('decisionRows');
+  const btnAddSalida = document.getElementById('btnAddSalida');
+
+  // options de nodos destino (sale del blade)
+  const nodosOptionsHtml = `{!! collect($nodos ?? collect())->map(fn($n)=>'<option value="'.$n->id.'">'.e($n->nombre).'</option>')->join('') !!}`;
 
   function esc(s){
     return (s ?? '').toString().replace(/[&<>"']/g, m => ({
@@ -288,16 +483,7 @@
     }[m]));
   }
 
-  const nodosOptionsHtml = `{!! collect($nodos ?? collect())->map(fn($n)=>'<option value="'.$n->id.'">'.e($n->nombre).'</option>')->join('') !!}`;
-
-  const mNodo = document.getElementById('modalNodoEdit');
-  if(!mNodo) return;
-
-  const form = document.getElementById('formNodoEdit');
-  const decisionRows = document.getElementById('decisionRows');
-  const btnAddSalida = document.getElementById('btnAddSalida');
-
-  function rowTpl(rel){
+  function transRowTpl(rel){
     const id = rel?.id ?? '';
     const condicion = esc(rel?.condicion ?? '');
     const prioridad = rel?.prioridad ?? 1;
@@ -321,23 +507,29 @@
     `;
   }
 
-  function readRows(){
+  function readTransRows(){
     const out = [];
+    if(!decisionRows) return out;
+
     decisionRows.querySelectorAll('.decision-row').forEach(r=>{
       const id = r.dataset.id ? parseInt(r.dataset.id,10) : null;
-      const condicion = r.querySelector('[data-k=condicion]').value.trim();
-      const destVal = r.querySelector('[data-k=nodo_destino_id]').value;
+      const condicion = r.querySelector('[data-k=condicion]')?.value?.trim() || '';
+      const destVal = r.querySelector('[data-k=nodo_destino_id]')?.value || '';
       const nodo_destino_id = destVal ? parseInt(destVal,10) : null;
-      const prioridad = parseInt(r.querySelector('[data-k=prioridad]').value,10) || 1;
+      const prioridad = parseInt(r.querySelector('[data-k=prioridad]')?.value,10) || 1;
 
+      // Regla: si no hay etiqueta o destino, se ignora
       if(!condicion || !nodo_destino_id) return;
+
       out.push({ id, condicion, nodo_destino_id, prioridad });
     });
+
     return out;
   }
 
   btnAddSalida?.addEventListener('click', ()=>{
-    decisionRows.insertAdjacentHTML('beforeend', rowTpl({}));
+    if(!decisionRows) return;
+    decisionRows.insertAdjacentHTML('beforeend', transRowTpl({}));
   });
 
   decisionRows?.addEventListener('click', (e)=>{
@@ -346,9 +538,8 @@
     }
   });
 
-  mNodo.addEventListener('show.bs.modal', async (ev)=>{
-    const b = ev.relatedTarget;
-    const nodoId = b.dataset.id;
+  async function loadTransiciones(nodoId){
+    if(!decisionRows) return;
 
     decisionRows.innerHTML = '';
 
@@ -360,13 +551,14 @@
       const rels = json.relaciones || [];
 
       if(rels.length === 0){
+        // opcional: 2 filas guía (si no querés, borrá este bloque)
         const d1 = { condicion:'Carta de crédito de importación', prioridad:1 };
         const d2 = { condicion:'Carta de crédito local', prioridad:2 };
-        decisionRows.insertAdjacentHTML('beforeend', rowTpl(d1));
-        decisionRows.insertAdjacentHTML('beforeend', rowTpl(d2));
+        decisionRows.insertAdjacentHTML('beforeend', transRowTpl(d1));
+        decisionRows.insertAdjacentHTML('beforeend', transRowTpl(d2));
       }else{
         rels.forEach(rel=>{
-          decisionRows.insertAdjacentHTML('beforeend', rowTpl(rel));
+          decisionRows.insertAdjacentHTML('beforeend', transRowTpl(rel));
           const last = decisionRows.lastElementChild;
           last.querySelector('[data-k=nodo_destino_id]').value = rel.nodo_destino_id;
         });
@@ -374,38 +566,178 @@
     }catch(e){
       console.error('No se pudieron cargar relaciones', e);
     }
+  }
+
+  async function saveTransiciones(nodoId){
+    const relaciones = readTransRows(); // puede ser []
+
+    const res = await fetch(`/process-builder/nodo/${nodoId}/relaciones`, {
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'X-CSRF-TOKEN': CSRF,
+        'Accept':'application/json',
+      },
+      body: JSON.stringify({ relaciones })
+    });
+
+    if(!res.ok){
+      const t = await res.text();
+      console.error('Error guardando transiciones:', t);
+      throw new Error('No se pudieron guardar transiciones');
+    }
+  }
+
+  // =========================
+  // SECCIÓN B: ITEMS DEL NODO
+  // =========================
+  const rowsWrap = document.getElementById('nodoItemRows');      // contenedor filas
+  const btnAddItem = document.getElementById('btnAddNodoItem');  // botón + agregar item
+  const hiddenItems = document.getElementById('itemsPayload');   // hidden input
+
+  // options de items por categoría (sale del blade)
+  const itemOptionsHtml = `
+    <option value="">-- Selecciona un item --</option>
+    <optgroup label="Documentos">
+      {!! collect($itemsByCategoria['DOCUMENTO'] ?? collect())
+            ->map(fn($i)=>'<option value="'.$i->id.'">'.e($i->nombre).'</option>')
+            ->join('') !!}
+    </optgroup>
+    <optgroup label="Formularios">
+      {!! collect($itemsByCategoria['FORMULARIO'] ?? collect())
+            ->map(fn($i)=>'<option value="'.$i->id.'">'.e($i->nombre).'</option>')
+            ->join('') !!}
+    </optgroup>
+    <optgroup label="Operaciones">
+      {!! collect($itemsByCategoria['OPERACION'] ?? collect())
+            ->map(fn($i)=>'<option value="'.$i->id.'">'.e($i->nombre).'</option>')
+            ->join('') !!}
+    </optgroup>
+  `;
+
+  function itemRowTpl(row){
+    const itemId = row?.id ?? row?.item_id ?? '';
+    const obligatorio = (row?.obligatorio ?? 1) == 1 ? 1 : 0;
+
+    return `
+      <div class="d-flex gap-2 align-items-center nodo-item-row">
+        <select class="form-select form-select-sm" data-k="item_id">
+          ${itemOptionsHtml}
+        </select>
+
+        <select class="form-select form-select-sm" style="width:160px" data-k="obligatorio">
+          <option value="1" ${obligatorio===1?'selected':''}>Obligatorio: Sí</option>
+          <option value="0" ${obligatorio===0?'selected':''}>Obligatorio: No</option>
+        </select>
+
+        <button type="button" class="btn btn-sm btn-outline-danger btnDelNodoItem">X</button>
+      </div>
+    `;
+  }
+
+  function readItemRows(){
+    const out = [];
+    if(!rowsWrap) return out;
+
+    rowsWrap.querySelectorAll('.nodo-item-row').forEach(r=>{
+      const itemVal = r.querySelector('[data-k="item_id"]')?.value || '';
+      const item_id = itemVal ? parseInt(itemVal,10) : null;
+      if(!item_id) return;
+
+      const obligatorio = parseInt(r.querySelector('[data-k="obligatorio"]')?.value,10) === 1 ? 1 : 0;
+      out.push({ item_id, obligatorio });
+    });
+
+    return out;
+  }
+
+  function setLastRowItemSelected(itemId){
+    const last = rowsWrap?.lastElementChild;
+    if(!last) return;
+    last.querySelector('[data-k="item_id"]').value = String(itemId);
+  }
+
+  btnAddItem?.addEventListener('click', ()=>{
+    if(!rowsWrap) return;
+    rowsWrap.insertAdjacentHTML('beforeend', itemRowTpl({}));
   });
 
+  rowsWrap?.addEventListener('click', (e)=>{
+    if(e.target.classList.contains('btnDelNodoItem')){
+      e.target.closest('.nodo-item-row')?.remove();
+    }
+  });
+
+  async function loadItems(nodoId){
+    if(!rowsWrap || !hiddenItems) return;
+
+    rowsWrap.innerHTML = '';
+    hiddenItems.value = '[]';
+
+    try{
+      const res = await fetch(`/process-builder/nodo/${nodoId}/items`, {
+        headers: { 'Accept':'application/json' }
+      });
+      const json = await res.json();
+      const items = json.items || [];
+
+      if(items.length === 0){
+        rowsWrap.insertAdjacentHTML('beforeend', itemRowTpl({}));
+      }else{
+        items.forEach(it=>{
+          rowsWrap.insertAdjacentHTML('beforeend', itemRowTpl(it));
+          setLastRowItemSelected(it.id);
+        });
+      }
+    }catch(err){
+      console.error('No se pudieron cargar items del nodo', err);
+      rowsWrap.insertAdjacentHTML('beforeend', itemRowTpl({}));
+    }
+  }
+
+  // =========================
+  // EVENTO: ABRIR MODAL
+  // - Carga transiciones + items
+  // =========================
+  modal.addEventListener('show.bs.modal', async (ev)=>{
+    const b = ev.relatedTarget;
+    const nodoId = b?.dataset?.id;
+    if(!nodoId) return;
+
+    await Promise.all([
+      loadTransiciones(nodoId),
+      loadItems(nodoId),
+    ]);
+  });
+
+  // =========================
+  // EVENTO: SUBMIT (UN SOLO PUNTO)
+  // - Guarda transiciones con fetch
+  // - Mete items_payload
+  // - Luego submit real del form
+  // =========================
   form.addEventListener('submit', async (e)=>{
     e.preventDefault();
 
+    // 1) nodoId desde action PUT /process-builder/nodo/{id}
     const action = form.getAttribute('action') || '';
     const nodoId = action.split('/').pop();
-    const relaciones = readRows(); // puede ser []
 
-    try{
-      const res = await fetch(`/process-builder/nodo/${nodoId}/relaciones`, {
-        method:'POST',
-        headers:{
-          'Content-Type':'application/json',
-          'X-CSRF-TOKEN': CSRF,
-          'Accept':'application/json',
-        },
-        body: JSON.stringify({ relaciones: relaciones })
-      });
-
-      if(!res.ok){
-        const t = await res.text();
-        console.error('Error guardando relaciones:', t);
-        alert('No se pudieron guardar las transiciones. Revisa consola.');
-        return;
-      }
-
-      form.submit();
-    }catch(err){
-      console.error(err);
-      alert('Error de red guardando transiciones. Revisa consola.');
+    // 2) payload items al hidden (para que updateNodo haga sync)
+    if(hiddenItems){
+      hiddenItems.value = JSON.stringify(readItemRows());
     }
+
+    // 3) guardar transiciones (si falla, NO enviamos el form)
+    try{
+      await saveTransiciones(nodoId);
+    }catch(err){
+      alert('No se pudieron guardar las transiciones. Revisa consola.');
+      return;
+    }
+
+    // 4) submit real
+    form.submit();
   });
 
 })();
@@ -1008,4 +1340,54 @@
   loadGraph();
 })();
 </script>
+
+<script>
+(function(){
+  const mNodo = document.getElementById('modalNodoEdit');
+  if(!mNodo) return;
+
+  function setObligatorioEnabled(itemId, enabled){
+    const sel = mNodo.querySelector(`.nodo-item-obligatorio[data-item-id="${itemId}"]`);
+    if(!sel) return;
+    sel.disabled = !enabled;
+  }
+
+  // Cuando cambias un checkbox: habilita/deshabilita obligatorio
+  mNodo.addEventListener('change', (e)=>{
+    const chk = e.target.closest('.nodo-item-check');
+    if(!chk) return;
+    setObligatorioEnabled(chk.dataset.itemId, chk.checked);
+  });
+
+  // Al abrir modal: precarga items marcados
+  mNodo.addEventListener('show.bs.modal', (ev)=>{
+    const b = ev.relatedTarget;
+
+    // Limpia todo
+    mNodo.querySelectorAll('.nodo-item-check').forEach(chk=>{
+      chk.checked = false;
+      setObligatorioEnabled(chk.dataset.itemId, false);
+    });
+
+    // Carga desde data-items
+    let items = [];
+    try{
+      items = b.dataset.items ? JSON.parse(b.dataset.items) : [];
+    }catch(e){ items = []; }
+
+    items.forEach(it=>{
+      const chk = mNodo.querySelector(`.nodo-item-check[data-item-id="${it.id}"]`);
+      const sel = mNodo.querySelector(`.nodo-item-obligatorio[data-item-id="${it.id}"]`);
+      if(chk){
+        chk.checked = true;
+        setObligatorioEnabled(it.id, true);
+      }
+      if(sel){
+        sel.value = String(it.obligatorio ?? 1);
+      }
+    });
+  });
+})();
+</script>
+
 @endpush

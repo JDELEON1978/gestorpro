@@ -22,19 +22,21 @@ class ProcessBuilderController extends Controller
             'FORMULARIO' => collect(),
             'OPERACION'  => collect(),
         ];
+        
 
         if ($procesoId) {
             $proceso = \App\Models\Proceso::findOrFail($procesoId);
 
-            $nodos = \App\Models\Nodo::where('proceso_id', $proceso->id)
-                ->orderBy('orden')
-                ->orderBy('id')
-                ->get();
+            $nodos = Nodo::where('proceso_id', $proceso->id)
+            ->with(['items:id']) // pivot obligatorio ya viene por withPivot
+            ->orderBy('orden')
+            ->orderBy('id')
+            ->get();
 
-            $items = \App\Models\Item::where('proceso_id', $proceso->id)
-                ->orderBy('categoria')
-                ->orderBy('nombre')
-                ->get();
+           $items = Item::where('proceso_id', $proceso->id)
+            ->orderBy('categoria')
+            ->orderBy('nombre')
+            ->get();
 
             $itemsByCategoria = $items->groupBy('categoria');
         } else {
@@ -51,6 +53,7 @@ class ProcessBuilderController extends Controller
             'procesos' => $procesos,
             'proceso' => $proceso,
             'nodos' => $nodos,
+            'items' => $items, // para pintar lista en el modal
             'itemsByCategoria' => $itemsByCategoria,
             'roles' => $roles,
         ]);
@@ -129,6 +132,23 @@ public function guardarRelacionesNodo(Request $request, Nodo $nodo)
 
     return response()->json(['ok' => true]);
 }
+
+    public function itemsNodo(Nodo $nodo)
+    {
+        $items = $nodo->items()
+            ->select('items.id', 'items.nombre', 'items.categoria', 'items.requiere_evidencia', 'items.allowed_extensions')
+            ->get()
+            ->map(fn($it) => [
+                'id' => $it->id,
+                'nombre' => $it->nombre,
+                'categoria' => $it->categoria,
+                'requiere_evidencia' => (bool)$it->requiere_evidencia,
+                'allowed_extensions'=> $it->nombre,
+                'obligatorio' => (int)($it->pivot->obligatorio ?? 1),
+            ]);
+
+        return response()->json(['items' => $items]);
+    }
     public function updateNodoPort(Request $r, Nodo $nodo)
     {
         $data = $r->validate([
@@ -292,6 +312,9 @@ public function storeNodo(Request $r, Proceso $proceso)
 
     public function updateNodo(Request $r, Nodo $nodo)
     {
+        // ===========================
+        // (A) Datos base del nodo
+        // ===========================
         $data = $r->validate([
             'nombre' => 'required|string|max:255',
             'tipo_nodo' => 'required|string|max:30',
@@ -300,38 +323,65 @@ public function storeNodo(Request $r, Proceso $proceso)
             'activo' => 'nullable|boolean',
             'responsable_rol_id' => 'nullable|integer|exists:roles,id',
             'descripcion' => 'nullable|string|max:5000',
+
+            // payload JSON con filas de items (para UI tipo "transiciones")
+            'items_payload' => 'nullable|string',
         ]);
 
         $data['activo'] = $r->boolean('activo', true);
 
+        // Actualiza nodo
         $nodo->update($data);
 
-        // 1) IDs marcados
-        $itemIds = array_keys($request->input('items', []));
+        // ===========================
+        // (B) Guardar Items del nodo
+        // ===========================
+        // ❌ BUG ANTERIOR: estabas usando $request (NO EXISTE) en vez de $r
+        // ✅ Ahora leemos un JSON con filas: [{item_id:1, obligatorio:1}, ...]
+        $raw = $r->input('items_payload');
 
-        // 2) Construimos payload para sync con pivot obligatorio
-        $syncData = [];
-        foreach ($itemIds as $itemId) {
-            $syncData[$itemId] = [
-                'obligatorio' => (int)($request->input("obligatorio.$itemId", 1)) === 1
-            ];
+        $rows = [];
+        if ($raw) {
+            $decoded = json_decode($raw, true);
+            if (is_array($decoded)) {
+                $rows = $decoded;
+            }
         }
 
-        // 3) sync
+        // Construimos syncData para pivot nodo_items
+        // formato: [ item_id => ['obligatorio' => 1], ... ]
+        $syncData = [];
+        foreach ($rows as $row) {
+            $itemId = (int)($row['item_id'] ?? 0);
+            if ($itemId <= 0) continue;
+
+            $obligatorio = (int)($row['obligatorio'] ?? 1) === 1 ? 1 : 0;
+            $syncData[$itemId] = ['obligatorio' => $obligatorio];
+        }
+
+        // ✅ Esto hace:
+        // - agrega los seleccionados
+        // - actualiza obligatorio
+        // - elimina los que ya no estén
         $nodo->items()->sync($syncData);
-        
-        return back();
+
+        return back()->with('ok', 'Nodo actualizado');
     }
 
     public function storeItem(Request $r, Proceso $proceso)
     {
+        $csv = $r->input('allowed_extensions_csv');
+        $exts = $csv ? array_values(array_filter(array_map(fn($x)=>strtolower(trim($x)), explode(',', $csv)))) : null;
+
+        
         $data = $r->validate([
             'nombre' => 'required|string|max:255',
             'categoria' => 'required|in:DOCUMENTO,FORMULARIO,OPERACION',
             'requiere_evidencia' => 'nullable|boolean',
             'activo' => 'nullable|boolean',
         ]);
-
+        
+        $data['allowed_extensions'] = $exts;
         $data['proceso_id'] = $proceso->id;
         $data['requiere_evidencia'] = $r->boolean('requiere_evidencia', true);
         $data['activo'] = $r->boolean('activo', true);
@@ -344,13 +394,15 @@ public function storeNodo(Request $r, Proceso $proceso)
 
     public function updateItem(Request $r, Item $item)
     {
+        $csv = $r->input('allowed_extensions_csv');
+        $exts = $csv ? array_values(array_filter(array_map(fn($x)=>strtolower(trim($x)), explode(',', $csv)))) : null;
         $data = $r->validate([
             'nombre' => 'required|string|max:255',
             'categoria' => 'required|in:DOCUMENTO,FORMULARIO,OPERACION',
             'requiere_evidencia' => 'nullable|boolean',
             'activo' => 'nullable|boolean',
         ]);
-
+        $data['allowed_extensions'] = $exts;
         $data['requiere_evidencia'] = $r->boolean('requiere_evidencia', true);
         $data['activo'] = $r->boolean('activo', true);
 

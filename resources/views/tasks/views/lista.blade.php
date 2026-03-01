@@ -16,15 +16,17 @@
         <div class="list-group list-group-flush">
           @foreach($items as $t)
             @php
-              $payload = [
-                'id' => $t->id,
-                'title' => $t->title,
-                'description' => $t->description,
-                'status_id' => $t->status_id,
-                'priority' => $t->priority,
-                'start_at' => $t->start_at ? $t->start_at->format('Y-m-d') : null,
-                'due_at' => $t->due_at ? $t->due_at->format('Y-m-d') : null,
-              ];
+               $payload = [
+            'id'          => $t->id,
+            'project_id'  => $t->project_id, // opcional, útil si luego lo necesitas
+            'nodo_id'     => $t->nodo_id,    //  CLAVE
+            'title'       => $t->title,
+            'description' => $t->description,
+            'status_id'   => $t->status_id,
+            'priority'    => $t->priority,
+            'start_at'    => $t->start_at ? \Illuminate\Support\Carbon::parse($t->start_at)->format('Y-m-d') : null,
+            'due_at'      => $t->due_at ? \Illuminate\Support\Carbon::parse($t->due_at)->format('Y-m-d') : null,
+          ];
 
               // IMPORTANTE: JSON seguro para HTML + parseable en JS
               $payloadJson = json_encode(
