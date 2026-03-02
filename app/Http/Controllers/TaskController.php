@@ -46,23 +46,25 @@ class TaskController extends Controller
             'nodo_id'     => ['nullable','integer','exists:nodos,id'],
         ]);
 
-        // ✅ Validar que el status pertenezca al proyecto
         $status = $project->statuses()
             ->where('id', (int)$data['status_id'])
             ->firstOrFail();
 
-        // ✅ Si el proyecto está ligado a proceso:
-        //    solo permitir crear tarea del NODO INICIO (una sola vez).
+        $destEstado = $this->getEstadoByStatusId((int)$status->id);
+        if ($destEstado === 'RECHAZADO') {
+            return response()->json([
+                'message' => 'No se permite crear tareas en un estado RECHAZADO.'
+            ], 409);
+        }
+
         if (!empty($project->proceso_id)) {
 
-            // nodo_id obligatorio
             if (empty($data['nodo_id'])) {
                 return response()->json([
                     'message' => 'Este proyecto está ligado a un proceso. Falta nodo_id.'
                 ], 422);
             }
 
-            // Buscar nodo inicio: el más antiguo del proceso (ajústalo si tienes campo is_start)
             $startNodoId = DB::table('nodos')
                 ->where('proceso_id', $project->proceso_id)
                 ->where('tipo_nodo', 'inicio')
@@ -75,44 +77,43 @@ class TaskController extends Controller
                 ], 422);
             }
 
-            // Solo permitir el nodo inicio
             if ((int)$data['nodo_id'] !== (int)$startNodoId) {
                 return response()->json([
                     'message' => 'Solo se permite crear la tarea del nodo de inicio para este proyecto.'
                 ], 422);
             }
-
-            // Evitar duplicado (si ya existe la tarea del inicio)
-            $yaExisteInicio = Task::where('project_id', $project->id)
-                ->where('nodo_id', (int)$startNodoId)
-                ->exists();
-
-           /* if ($yaExisteInicio) {
-                return response()->json([
-                    'message' => 'Ya existe la tarea de inicio de este proceso en el proyecto.'
-                ], 422);
-            }*/
         }
 
-        // Posición al final dentro de la columna
         $maxPos = Task::where('project_id', $project->id)
             ->where('status_id', $status->id)
             ->max('position');
 
         $task = new Task();
-        $task->project_id  = $project->id;
-        $task->status_id   = $status->id;
-        $task->title       = $data['title'];
-        $task->description = $data['description'] ?? null;
-        $task->priority    = $data['priority'] ?? null;
-        $task->start_at    = $data['start_at'] ?? null;
-        $task->due_at      = $data['due_at'] ?? null;
-        $task->nodo_id     = $data['nodo_id'] ?? null;
-        $task->created_by  = auth()->id();
-        $task->position    = (int)($maxPos ?? 0) + 1;
+        $task->project_id        = $project->id;
+        $task->status_id         = (int)$status->id;
+        $task->project_status_id = (int)$status->id;
+        $task->title             = $data['title'];
+        $task->description       = $data['description'] ?? null;
+        $task->priority          = $data['priority'] ?? null;
+        $task->start_at          = $data['start_at'] ?? null;
+        $task->due_at            = $data['due_at'] ?? null;
+        
+        $dueAt = $data['due_at'] ?? null;
+
+        if (!empty($project->proceso_id) && !empty($data['nodo_id'])) {
+            $slaHoras = (int) DB::table('nodos')->where('id', (int)$data['nodo_id'])->value('sla_horas');
+            if ($slaHoras > 0) {
+                $dueAt = now()->addHours($slaHoras); // usando "ahora" como base de creación
+            }
+        }
+
+        $task->due_at = $dueAt;
+        
+        $task->nodo_id           = $data['nodo_id'] ?? null;
+        $task->created_by        = auth()->id();
+        $task->position          = (int)($maxPos ?? 0) + 1;
         $task->save();
 
-        // ✅ Como estás usando fetch() con Accept: application/json → responde JSON
         return response()->json([
             'ok'   => true,
             'task' => [
@@ -134,23 +135,39 @@ class TaskController extends Controller
             'ordered_ids.*'=> ['integer'],
         ]);
 
-        $projectId = (int) $task->project_id;
+        $projectId = (int)$task->project_id;
 
-        // Validar status destino pertenezca al mismo proyecto
-        $status = $task->project
+        $statusDestino = $task->project
             ->statuses()
             ->where('id', (int)$data['status_id'])
             ->firstOrFail();
 
-        DB::transaction(function () use ($task, $status, $data, $projectId) {
+        $destStatusId = (int)$statusDestino->id;
+
+        // Bloqueo SOLO para esta tarea
+        $this->assertTaskEditable($task, $destStatusId);
+
+        DB::transaction(function () use ($task, $destStatusId, $data, $projectId) {
 
             $ordered = collect($data['ordered_ids'] ?? [])
                 ->map(fn($id) => (int)$id)
                 ->filter()
                 ->values();
 
+            // Asegurar que ordered_ids incluya la tarea movida (si el JS no la incluyó)
+            if ($ordered->isNotEmpty() && !$ordered->contains((int)$task->id)) {
+                $ordered->push((int)$task->id);
+            }
+
+            // 1) Mover la tarea al status destino
+            $task->status_id         = $destStatusId;
+            $task->project_status_id = $destStatusId;
+            $task->save();
+
+            // 2) Reordenar posiciones en la columna destino
             if ($ordered->isNotEmpty()) {
 
+                // Validar que todas las IDs pertenecen al proyecto
                 $validCount = Task::where('project_id', $projectId)
                     ->whereIn('id', $ordered->all())
                     ->count();
@@ -159,24 +176,21 @@ class TaskController extends Controller
                     abort(422, 'ordered_ids contiene tareas inválidas.');
                 }
 
-                $task->status_id = $status->id;
-                $task->save();
-
                 foreach ($ordered as $idx => $id) {
                     Task::where('project_id', $projectId)
                         ->where('id', $id)
                         ->update([
-                            'status_id' => $status->id,
-                            'position'  => $idx + 1,
+                            'position' => $idx + 1,
                         ]);
                 }
+
+                // Si el JS manda el orden correcto, con esto ya no debería “rebotar”
             } else {
                 $maxPos = Task::where('project_id', $projectId)
-                    ->where('status_id', $status->id)
+                    ->where('status_id', $destStatusId)
                     ->max('position');
 
-                $task->status_id = $status->id;
-                $task->position  = (int)($maxPos ?? 0) + 1;
+                $task->position = (int)($maxPos ?? 0) + 1;
                 $task->save();
             }
         });
@@ -184,12 +198,13 @@ class TaskController extends Controller
         return response()->json(['ok' => true]);
     }
 
-
     public function advance(Task $task, Request $request)
     {
         $request->validate([
             'next_nodo_id' => ['nullable','integer'],
         ]);
+
+        $this->assertTaskEditable($task, null);
 
         $projectId = (int)$task->project_id;
         if (!$projectId) {
@@ -210,12 +225,6 @@ class TaskController extends Controller
             return response()->json(['ok'=>false,'message'=>'No hay estados configurados en este proyecto.'], 422);
         }
 
-        // Si ya está Done, no se avanza
-        if ((int)$task->project_status_id === (int)$doneStatusId) {
-            return response()->json(['ok'=>false,'message'=>'La tarea ya está finalizada.(' . $doneStatusId . ')'.$todoStatusId], 409);
-        }
-
-        // Validar nodo actual
         if (!$task->nodo_id) {
             return response()->json(['ok'=>false,'message'=>'La tarea no tiene nodo asociado.'], 422);
         }
@@ -227,7 +236,6 @@ class TaskController extends Controller
 
         $nextNodoId = (int)($request->input('next_nodo_id') ?? 0);
 
-        // Validar transición (si mandaron next)
         if ($nextNodoId > 0) {
             $rel = DB::table('nodo_relaciones')
                 ->where('proceso_id', $procesoId)
@@ -240,7 +248,6 @@ class TaskController extends Controller
             }
         }
 
-        // Determinar si next es FIN
         $isEnd = false;
         $nextNodo = null;
 
@@ -260,26 +267,23 @@ class TaskController extends Controller
         DB::transaction(function () use (
             $task, $doneStatusId, $todoStatusId, $projectId, $nextNodoId, $nextNodo, $isEnd
         ) {
-            // 1) Marcar actual como DONE + completed_at
-            $task->project_status_id = $doneStatusId;
-            $task->status_id = $doneStatusId;
-            $task->completed_at = now();
+            $task->status_id         = (int)$doneStatusId;
+            $task->project_status_id = (int)$doneStatusId;
+            $task->completed_at      = now();
             $task->save();
 
-            // 2) Si es fin o no hay next -> no crear nada
             if ($isEnd || $nextNodoId <= 0) {
                 return;
             }
 
-            // 3) Crear siguiente tarea (SILENCIOSO)
-            \App\Models\Task::create([
+            Task::create([
                 'project_id'        => $projectId,
                 'title'             => $nextNodo->nombre ?? 'Siguiente',
                 'description'       => $nextNodo->descripcion ?? null,
-                'status_id'         => $todoStatusId,
-                'project_status_id' => $todoStatusId,
+                'status_id'         => (int)$todoStatusId,
+                'project_status_id' => (int)$todoStatusId,
                 'nodo_id'           => $nextNodoId,
-                'priority'          => 3,      // NOT NULL
+                'priority'          => 3,
                 'position'          => 0,
                 'created_by'        => auth()->id(),
                 'parent_task_id'    => $task->id,
@@ -293,43 +297,88 @@ class TaskController extends Controller
         ]);
     }
 
-
     public function update(Task $task, Request $request)
     {
-        $doneId = $this->projectStatusId($task->project_id, 'done');
-        if ($doneId && (int)$task->project_status_id === (int)$doneId) {
-            return response()->json(['message' => 'La tarea está en Done y no se puede modificar.'], 409);
-        }
-
-        // --- aquí sigue tu lógica real de update ---
-        // IMPORTANTE: asegúrate de actualizar project_status_id (no status_id) si así funciona tu tablero.
-        // Ejemplo mínimo (adáptalo a tu app):
         $data = $request->validate([
             'title'        => ['required','string','max:255'],
             'description'  => ['nullable','string'],
-            'status_id'    => ['required','integer'], // aquí viene el id de project_statuses
+            'status_id'    => ['required','integer'],
             'priority'     => ['nullable','integer','min:1','max:5'],
             'start_at'     => ['nullable','date'],
-            'due_at'       => ['nullable'], // datetime o date según tu UI
+            'due_at'       => ['nullable'],
             'nodo_id'      => ['nullable','integer'],
         ]);
 
-        $task->title = $data['title'];
-        $task->description = $data['description'] ?? null;
-        $task->project_status_id = (int)$data['status_id']; // <-- clave
-        $task->priority = (int)($data['priority'] ?? $task->priority ?? 3);
-        $task->start_at = $data['start_at'] ?? null;
-        $task->due_at = $data['due_at'] ?? null;
-        $task->nodo_id = $data['nodo_id'] ?? $task->nodo_id;
+        $destStatus = DB::table('project_statuses')
+            ->where('project_id', (int)$task->project_id)
+            ->where('id', (int)$data['status_id'])
+            ->first();
+
+        if (!$destStatus) {
+            return response()->json(['message' => 'Estado destino inválido para este proyecto.'], 422);
+        }
+
+        $destStatusId = (int)$destStatus->id;
+
+        $this->assertTaskEditable($task, $destStatusId);
+
+        $task->title             = $data['title'];
+        $task->description       = $data['description'] ?? null;
+        $task->status_id         = $destStatusId;
+        $task->project_status_id = $destStatusId;
+        $task->priority          = (int)($data['priority'] ?? $task->priority ?? 3);
+        $task->start_at          = $data['start_at'] ?? null;
+        $task->due_at            = $data['due_at'] ?? null;
+        $task->nodo_id           = $data['nodo_id'] ?? $task->nodo_id;
 
         $task->save();
 
         return response()->json(['ok' => true]);
     }
 
+    /* =======================
+     * Helpers (bloqueo por tarea)
+     * ======================= */
 
-    
-    /* ===== helpers ===== */
+    private function getTaskCurrentStatusId(Task $task): int
+    {
+        $sid = (int)($task->status_id ?? 0);
+        if ($sid > 0) return $sid;
+
+        return (int)($task->project_status_id ?? 0);
+    }
+
+    private function getEstadoByStatusId(int $statusId): ?string
+    {
+        if ($statusId <= 0) return null;
+
+        return DB::table('project_statuses')
+            ->where('id', $statusId)
+            ->value('estado');
+    }
+
+    private function assertTaskEditable(Task $task, ?int $destStatusId = null): void
+    {
+        $currentStatusId = $this->getTaskCurrentStatusId($task);
+        $currentEstado   = $this->getEstadoByStatusId($currentStatusId);
+
+        if ($currentEstado === 'RECHAZADO') {
+            abort(409, 'La tarea está RECHAZADA y no se puede modificar.');
+        }
+
+        if ($currentEstado === 'APROBADO') {
+            if (!$destStatusId) {
+                abort(409, 'La tarea está APROBADA: solo puede pasar a RECHAZADO.');
+            }
+
+            $destEstado = $this->getEstadoByStatusId($destStatusId);
+            if ($destEstado !== 'RECHAZADO') {
+                abort(409, 'La tarea está APROBADA: solo puede pasar a RECHAZADO.');
+            }
+        }
+    }
+
+    /* ===== helpers existentes ===== */
 
     private function projectStatusId(int $projectId, string $slug)
     {
@@ -364,5 +413,4 @@ class TaskController extends Controller
             ->orderBy('position','asc')
             ->value('id');
     }
-
 }

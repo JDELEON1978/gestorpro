@@ -18,6 +18,7 @@ class ProjectStatus extends Model
         'color',
         'position',
         'is_default',
+        'estado'
     ];
 
     protected $casts = [
