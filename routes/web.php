@@ -12,6 +12,9 @@ use App\Http\Controllers\ProcessBuilderController;
 use App\Http\Controllers\ExpedienteController;
 use App\Http\Controllers\UserRoleController;
 use App\Http\Controllers\TaskEvidenceController;
+use App\Http\Controllers\TaskActivityController;
+use App\Http\Controllers\TaskAuditController;
+
 
 Route::get('/', function () {
     return redirect()->route('dashboard');
@@ -137,6 +140,13 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/projects/{project}/tasks/create', [TaskController::class, 'create'])->name('projects.tasks.create');
     Route::post('/projects/{project}/tasks', [TaskController::class, 'store'])->name('projects.tasks.store');
     Route::get('/projects/{project}/start-node', [ProjectController::class, 'startNode'])->name('projects.start_node');
+    
+    Route::get('/projects/{project}/start-tasks', [ProjectController::class, 'startTasks']);
+    Route::get('/tasks/{task}/chain', [TaskController::class, 'chain'])->name('tasks.chain');
+
+    Route::get('/tasks/{task}/activities', [TaskActivityController::class, 'index'])->name('tasks.activities');
+    Route::get('/tasks/{task}/audit-review', [TaskAuditController::class, 'show'])->name('tasks.audit-review');
+    
     Route::patch('/tasks/{task}/move', [TaskController::class, 'move'])->name('tasks.move');
     Route::patch('/tasks/{task}', [TaskController::class, 'update'])->name('tasks.update');
     Route::post('/projects/{project}/statuses', [ProjectStatusController::class, 'store'])->name('projects.statuses.store');
@@ -148,6 +158,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/tasks/{task}/advance', [TaskController::class, 'advance'])->name('tasks.advance');
     Route::get('/tasks/{task}/evidences', [TaskEvidenceController::class, 'index']);
     Route::post('/tasks/{task}/evidences/{item}', [TaskEvidenceController::class, 'store']);
+    
 
     /*
     |--------------------------------------------------------------------------

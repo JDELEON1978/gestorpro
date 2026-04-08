@@ -67,7 +67,7 @@
   <div class="row g-0">
     {{-- Canvas --}}
     <div class="col-9 pe-3">
-      <div class="border bg-white" style="min-height: 78vh; position: relative; overflow:hidden;">
+      <div class="border bg-white" style="min-height: 78vh; position: relative; overflow:auto;">
         <div class="p-2 d-flex justify-content-between align-items-center">
           <div>
             @if($proceso)

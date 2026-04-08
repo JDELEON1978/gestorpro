@@ -173,7 +173,11 @@
 
                   <i class="bi bi-{{ $t->priority }}-circle-fill" style="color: {{ $priorityColor }};"></i>
                   <i class="bi bi-paperclip"></i>
-                  <i class="bi bi-chat-dots"></i>
+                  <span class="gp-icon-btn js-open-task-activities"
+                        title="Ver actividades"
+                        data-task-id="{{ $t->id }}">
+                    <i class="bi bi-chat-dots"></i>
+                  </span>
                   <span class="gp-icon-btn js-open-task-modal"
                         title="Editar la tarea"
                         data-task-id="{{ $t->id }}">
@@ -257,16 +261,21 @@
   // ❌ Bloquear apertura de modal al hacer click en la tarjeta
   // (Si tu app tenía listener global, lo cortamos aquí)
   document.addEventListener('click', (e) => {
-    const card = e.target.closest('.gp-card');
-    if (!card) return;
+      const card = e.target.closest('.gp-card');
+      if (!card) return;
 
-    // Si el click fue en el paperclip, no bloqueamos aquí (lo maneja el handler de abajo)
-    if (e.target.closest('.js-open-task-modal')) return;
+      // Permitir acciones explícitas dentro de la tarjeta
+      if (
+        e.target.closest('.js-open-task-modal') ||
+        e.target.closest('.js-open-task-activities') ||
+        e.target.closest('.js-open-files')
+      ) {
+        return;
+      }
 
-    // Evita que listeners externos abran el modal por click en la tarjeta
-    e.preventDefault();
-    e.stopPropagation();
-  }, true); // 👈 captura para interceptar antes
+      e.preventDefault();
+      e.stopPropagation();
+    }, true);
 
   // ✅ Click solo en paperclip abre modal + archivos
   document.addEventListener('click', (e) => {
@@ -281,12 +290,15 @@
   });
 
   // ✅ IMPORTANTÍSIMO: evitar que el drag se active cuando intentas clickear paperclip
-  document.addEventListener('mousedown', (e) => {
-    if (e.target.closest('.js-open-task-modal')) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
-  }, true);
+    document.addEventListener('mousedown', (e) => {
+      if (
+        e.target.closest('.js-open-task-modal') ||
+        e.target.closest('.js-open-task-activities')
+      ) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    }, true);
 
   // Drag start
   document.addEventListener('dragstart', (e) => {

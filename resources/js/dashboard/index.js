@@ -1,0 +1,9 @@
+import './config';
+import './helpers';
+import './sidebar';
+import './task-modal';
+import './workflow';
+import './files-modal';
+import './evidences';
+import './chain-modal';
+import './activities-modal';

@@ -7,6 +7,7 @@ use App\Models\Task;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
+
 class TaskController extends Controller
 {
     public function index(Project $project)
@@ -16,6 +17,122 @@ class TaskController extends Controller
             'view'       => request('view', 'tablero'),
         ]);
     }
+
+public function chain(\App\Models\Task $task, Request $request)
+{
+    if (!$request->expectsJson() && !$request->ajax()) {
+        return response()->json(['ok' => false, 'message' => 'Bad request'], 400);
+    }
+
+    $limit = 300;
+
+    // Traemos la cadena + status_name (sin cálculos peligrosos en SQL)
+    $rows = DB::select("
+        WITH RECURSIVE chain AS (
+            SELECT
+                t.id,
+                t.parent_task_id,
+                t.project_id,
+                t.title,
+                t.status_id,
+                t.priority,
+                t.start_at,
+                t.due_at,
+                t.nodo_id,
+                t.created_at,
+                t.updated_at,
+                0 AS depth
+            FROM tasks t
+            WHERE t.id = ?
+
+            UNION ALL
+
+            SELECT
+                c2.id,
+                c2.parent_task_id,
+                c2.project_id,
+                c2.title,
+                c2.status_id,
+                c2.priority,
+                c2.start_at,
+                c2.due_at,
+                c2.nodo_id,
+                c2.created_at,
+                c2.updated_at,
+                chain.depth + 1 AS depth
+            FROM tasks c2
+            INNER JOIN chain ON c2.parent_task_id = chain.id
+            WHERE chain.depth < ?
+        )
+        SELECT
+            chain.*,
+            ps.name AS status_name
+        FROM chain
+        LEFT JOIN project_statuses ps ON ps.id = chain.status_id
+        ORDER BY depth ASC
+    ", [$task->id, $limit]);
+
+    // Define qué consideras "cerrado"
+    $doneNames = ['done', 'finalizado', 'completado'];
+
+    $totalPlanned = 0;
+    $totalActual  = 0;
+
+    // Enriquecer cada fila con planned_minutes y actual_minutes
+    $tasks = collect($rows)->map(function($r) use ($doneNames, &$totalPlanned, &$totalActual) {
+        // planned = due_at - start_at
+        $planned = null;
+        if (!empty($r->start_at) && !empty($r->due_at)) {
+            $planned = max(0, (int) \Carbon\Carbon::parse($r->start_at)->diffInMinutes(\Carbon\Carbon::parse($r->due_at), false));
+            // diffInMinutes con false puede dar negativo; lo clamp a 0
+        }
+
+        // actual = updated_at - (start_at || created_at) si está cerrado
+        $actual = null;
+        $statusName = strtolower(trim((string)($r->status_name ?? '')));
+        $isDone = in_array($statusName, $doneNames, true);
+
+        if ($isDone) {
+            $from = !empty($r->start_at) ? $r->start_at : $r->created_at;
+            $to   = $r->updated_at;
+
+            if (!empty($from) && !empty($to)) {
+                $actual = max(0, (int) \Carbon\Carbon::parse($from)->diffInMinutes(\Carbon\Carbon::parse($to), false));
+            }
+        }
+
+        if (!is_null($planned)) $totalPlanned += (int)$planned;
+        if (!is_null($actual))  $totalActual  += (int)$actual;
+
+        // devolver con campos extra (como stdClass -> array)
+        return [
+            'id'             => (int)$r->id,
+            'parent_task_id' => $r->parent_task_id ? (int)$r->parent_task_id : null,
+            'project_id'     => (int)$r->project_id,
+            'title'          => $r->title,
+            'status_id'      => $r->status_id ? (int)$r->status_id : null,
+            'status_name'    => $r->status_name,
+            'priority'       => $r->priority,
+            'start_at'       => $r->start_at,
+            'due_at'         => $r->due_at,
+            'nodo_id'        => $r->nodo_id,
+            'created_at'     => $r->created_at,
+            'updated_at'     => $r->updated_at,
+            'depth'          => (int)$r->depth,
+            'planned_minutes'=> $planned,
+            'actual_minutes' => $actual,
+        ];
+    })->values();
+
+    return response()->json([
+        'ok' => true,
+        'tasks' => $tasks,
+        'totals' => [
+            'planned_minutes' => $totalPlanned,
+            'actual_minutes'  => $totalActual,
+        ],
+    ]);
+}
 
     public function create(Project $project, Request $request)
     {
@@ -114,6 +231,8 @@ class TaskController extends Controller
         $task->position          = (int)($maxPos ?? 0) + 1;
         $task->save();
 
+        
+
         return response()->json([
             'ok'   => true,
             'task' => [
@@ -134,6 +253,8 @@ class TaskController extends Controller
             'ordered_ids'  => ['nullable','array'],
             'ordered_ids.*'=> ['integer'],
         ]);
+        $fromStatusId = (int) $task->status_id;
+        $fromPos      = (int) ($task->position ?? 0);
 
         $projectId = (int)$task->project_id;
 
@@ -194,12 +315,23 @@ class TaskController extends Controller
                 $task->save();
             }
         });
+        $task->refresh();
+
+        $task->logActivity('moved', [
+            'from_status_id'  => $fromStatusId,
+            'to_status_id'    => (int) $task->status_id,
+            'from_position'   => $fromPos,
+            'to_position'     => (int) ($task->position ?? 0),
+            'ordered_count'   => (int)($orderedCount ?? 0), // si ya lo calculas
+        ]);
 
         return response()->json(['ok' => true]);
     }
 
     public function advance(Task $task, Request $request)
     {
+        $fromNodoId = (int)($task->nodo_id ?? 0);
+        $fromStatus = (int)($task->status_id ?? 0); 
         $request->validate([
             'next_nodo_id' => ['nullable','integer'],
         ]);
@@ -290,6 +422,14 @@ class TaskController extends Controller
                 'from_nodo_id'      => (int)$task->nodo_id,
             ]);
         });
+
+        $task->logActivity('advanced', [
+            'from_nodo_id'   => $fromNodoId ?: null,
+            'to_nodo_id'     => (int)($nextNodoId ?? 0) ?: null,
+            'from_status_id' => $fromStatus,
+            'to_status_id'   => (int)($task->status_id ?? 0),
+            'next_task_id'   => isset($nextTask) && $nextTask ? (int)$nextTask->id : null,
+        ]);
 
         return response()->json([
             'ok' => true,

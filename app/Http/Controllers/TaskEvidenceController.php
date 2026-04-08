@@ -51,6 +51,14 @@ class TaskEvidenceController extends Controller
         'uploaded_by'   => auth()->id(),
       ]
     );
+    $task->logActivity('evidence_uploaded', [
+    'nodo_item_id'   => (int)$e->nodo_item_id,
+    'evidence_id'    => (int)$e->id,
+    'disk'           => (string)$e->disk,
+    'path'           => (string)$e->path,
+    'original_name'  => (string)$e->original_name,
+    'size_bytes'     => (int)$e->size_bytes,
+]);
 
     return response()->json([
       'ok' => true,

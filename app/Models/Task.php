@@ -2,8 +2,13 @@
 
 namespace App\Models;
 
+use App\Models\TaskActivity;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Auth;
+
+
 
 class Task extends Model
 {
@@ -49,6 +54,22 @@ class Task extends Model
         'completed_at' => 'datetime',
         'archived_at'  => 'datetime',
     ];
+
+    public function activities(): HasMany
+    {
+        return $this->hasMany(TaskActivity::class, 'task_id');
+    }
+
+    public function logActivity(string $event, array $meta = [], ?int $userId = null): TaskActivity
+        {
+            return TaskActivity::create([
+                'task_id' => $this->id,
+                'user_id' => $userId ?? Auth::id(),
+                'event'   => $event,
+                'meta'    => empty($meta) ? null : $meta,
+            ]);
+        }
+
 
     public function expediente(): BelongsTo
     {

@@ -163,21 +163,36 @@ class ProjectController extends Controller
                     ->orderBy('nd.id')
                     ->get();
 
-                $transiciones = $rows->map(function ($r) {
-                    $label = trim((string)($r->etiqueta ?? ''));
+                $rows = DB::table('nodo_relaciones as r')
+                ->join('nodos as nd', 'nd.id', '=', 'r.nodo_destino_id')
+                ->where('r.nodo_origen_id', $nodo->id)
+                ->where('nd.proceso_id', $project->proceso_id)
+                ->select([
+                    'r.condicion as etiqueta',
+                    'r.prioridad as orden',
+                    'nd.id as nodo_destino_id',
+                    'nd.nombre as nodo_destino_nombre',
+                    'nd.tipo_nodo as nodo_destino_tipo',
+                ])
+                ->orderBy('r.prioridad')
+                ->orderBy('nd.id')
+                ->get();
 
-                    // Si no hay etiqueta, usa nombre del nodo destino o "Continuar"
-                    if ($label === '') {
-                        $label = trim((string)($r->nodo_destino_nombre ?? '')) ?: 'Continuar';
-                    }
+            $transiciones = $rows->map(function ($r) {
+                $label = trim((string)($r->etiqueta ?? ''));
 
-                    return [
-                        'etiqueta'            => $label,
-                        'orden'               => (int)($r->orden ?? 0),
-                        'nodo_destino_id'     => (int)($r->nodo_destino_id ?? 0),
-                        'nodo_destino_nombre' => $r->nodo_destino_nombre ?? '',
-                    ];
-                })->all();
+                if ($label === '') {
+                    $label = trim((string)($r->nodo_destino_nombre ?? '')) ?: 'Continuar';
+                }
+
+                return [
+                    'etiqueta'            => $label,
+                    'orden'               => (int)($r->orden ?? 0),
+                    'nodo_destino_id'     => (int)($r->nodo_destino_id ?? 0),
+                    'nodo_destino_nombre' => $r->nodo_destino_nombre ?? '',
+                    'is_end'              => strtolower((string)($r->nodo_destino_tipo ?? '')) === 'fin',
+                ];
+            })->all();
             }
         } catch (\Throwable $e) {
             Log::error('start-node transiciones error: '.$e->getMessage());
@@ -195,4 +210,40 @@ class ProjectController extends Controller
             ],
         ]);
     }
+
+    public function startTasks(Project $project, Request $request)
+        {
+            if (!$request->expectsJson() && !$request->ajax()) {
+                return response()->json(['ok' => false, 'message' => 'Bad request'], 400);
+            }
+
+            if (empty($project->proceso_id)) {
+                return response()->json(['ok' => true, 'tasks' => []]);
+            }
+
+            $rows = \DB::table('tasks as t')
+                ->join('nodos as n', 'n.id', '=', 't.nodo_id')
+                ->where('t.project_id', $project->id)
+                ->whereNull('t.archived_at')
+                ->where('n.proceso_id', $project->proceso_id)
+                ->where('n.tipo_nodo', 'inicio')
+                ->select([
+                    't.id',
+                    't.title',
+                    't.description',
+                    't.status_id',
+                    't.priority',
+                    \DB::raw('DATE(t.start_at) as start_at'),
+                    \DB::raw('DATE(t.due_at) as due_at'),
+                    't.nodo_id',
+                ])
+                ->orderBy('t.id', 'desc')
+                ->limit(200) // crítico: evita combos gigantes
+                ->get();
+
+            return response()->json([
+                'ok' => true,
+                'tasks' => $rows,
+            ]);
+        }
 }
