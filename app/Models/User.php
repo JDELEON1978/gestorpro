@@ -45,11 +45,16 @@ class User extends Authenticatable
             ->withTimestamps();
     }
 
-        public function workspaces()
+    public function workspaces()
     {
         return $this->belongsToMany(Workspace::class, 'user_workspace')
             ->withPivot('role')
             ->withTimestamps();
+    }
+
+    public function activosResponsables(): HasMany
+    {
+        return $this->hasMany(Activo::class, 'responsable_user_id');
     }
 
 }

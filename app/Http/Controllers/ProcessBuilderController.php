@@ -60,6 +60,33 @@ class ProcessBuilderController extends Controller
         ]);
     }
 
+    public function print(Proceso $proceso)
+    {
+        $proceso->load([
+            'items',
+            'nodos' => function ($query) {
+                $query->with([
+                    'items',
+                    'responsableRol',
+                    'salientes.destino',
+                ])->orderBy('orden')->orderBy('id');
+            },
+            'relaciones' => function ($query) {
+                $query->with(['origen', 'destino'])->orderBy('prioridad')->orderBy('id');
+            },
+        ]);
+
+        $nodos = $proceso->nodos;
+        $relaciones = $proceso->relaciones;
+
+        return view('process_builder.print', [
+            'proceso' => $proceso,
+            'nodos' => $nodos,
+            'relaciones' => $relaciones,
+            'generatedAt' => now(),
+        ]);
+    }
+
 public function guardarRelacionesNodo(Request $request, Nodo $nodo)
 {
     // OJO: "present|array" permite []

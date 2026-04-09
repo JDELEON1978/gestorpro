@@ -14,6 +14,14 @@ use App\Http\Controllers\UserRoleController;
 use App\Http\Controllers\TaskEvidenceController;
 use App\Http\Controllers\TaskActivityController;
 use App\Http\Controllers\TaskAuditController;
+use App\Http\Controllers\ActivoController;
+use App\Http\Controllers\CentralGeneracionController;
+use App\Http\Controllers\UbicacionActivoController;
+use App\Http\Controllers\CategoriaActivoController;
+use App\Http\Controllers\ActivoEventoController;
+use App\Http\Controllers\ActivoContactoController;
+use App\Http\Controllers\ActivoDocumentoController;
+use App\Http\Controllers\ActivoEventoEvidenciaController;
 
 
 Route::get('/', function () {
@@ -58,6 +66,8 @@ Route::middleware(['auth'])->group(function () {
     // Vista principal (selector de proceso + canvas)
     Route::get('/process-builder/{proceso?}', [ProcessBuilderController::class, 'index'])
         ->name('process.builder');
+    Route::get('/process-builder/{proceso}/print', [ProcessBuilderController::class, 'print'])
+        ->name('process.builder.print');
 
     // Proceso
     Route::post('/process-builder/proceso', [ProcessBuilderController::class, 'storeProceso'])
@@ -136,6 +146,49 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/workspaces/{workspace}/projects', [ProjectController::class, 'index'])->name('workspaces.projects.index');
     Route::get('/workspaces/{workspace}/projects/create', [ProjectController::class, 'create'])->name('workspaces.projects.create');
     Route::post('/workspaces/{workspace}/projects', [ProjectController::class, 'store'])->name('workspaces.projects.store');
+    Route::get('/workspaces/{workspace}/centrales', [CentralGeneracionController::class, 'index'])->name('workspaces.centrales.index');
+    Route::get('/workspaces/{workspace}/centrales/create', [CentralGeneracionController::class, 'create'])->name('workspaces.centrales.create');
+    Route::post('/workspaces/{workspace}/centrales', [CentralGeneracionController::class, 'store'])->name('workspaces.centrales.store');
+    Route::get('/workspaces/{workspace}/centrales/{central}', [CentralGeneracionController::class, 'show'])->name('workspaces.centrales.show');
+    Route::get('/workspaces/{workspace}/centrales/{central}/edit', [CentralGeneracionController::class, 'edit'])->name('workspaces.centrales.edit');
+    Route::put('/workspaces/{workspace}/centrales/{central}', [CentralGeneracionController::class, 'update'])->name('workspaces.centrales.update');
+    Route::delete('/workspaces/{workspace}/centrales/{central}', [CentralGeneracionController::class, 'destroy'])->name('workspaces.centrales.destroy');
+    Route::get('/workspaces/{workspace}/ubicaciones', [UbicacionActivoController::class, 'index'])->name('workspaces.ubicaciones.index');
+    Route::get('/workspaces/{workspace}/ubicaciones/create', [UbicacionActivoController::class, 'create'])->name('workspaces.ubicaciones.create');
+    Route::post('/workspaces/{workspace}/ubicaciones', [UbicacionActivoController::class, 'store'])->name('workspaces.ubicaciones.store');
+    Route::get('/workspaces/{workspace}/ubicaciones/{ubicacion}', [UbicacionActivoController::class, 'show'])->name('workspaces.ubicaciones.show');
+    Route::get('/workspaces/{workspace}/ubicaciones/{ubicacion}/edit', [UbicacionActivoController::class, 'edit'])->name('workspaces.ubicaciones.edit');
+    Route::put('/workspaces/{workspace}/ubicaciones/{ubicacion}', [UbicacionActivoController::class, 'update'])->name('workspaces.ubicaciones.update');
+    Route::delete('/workspaces/{workspace}/ubicaciones/{ubicacion}', [UbicacionActivoController::class, 'destroy'])->name('workspaces.ubicaciones.destroy');
+    Route::get('/workspaces/{workspace}/categorias', [CategoriaActivoController::class, 'index'])->name('workspaces.categorias.index');
+    Route::get('/workspaces/{workspace}/categorias/create', [CategoriaActivoController::class, 'create'])->name('workspaces.categorias.create');
+    Route::post('/workspaces/{workspace}/categorias', [CategoriaActivoController::class, 'store'])->name('workspaces.categorias.store');
+    Route::get('/workspaces/{workspace}/categorias/{categoria}', [CategoriaActivoController::class, 'show'])->name('workspaces.categorias.show');
+    Route::get('/workspaces/{workspace}/categorias/{categoria}/edit', [CategoriaActivoController::class, 'edit'])->name('workspaces.categorias.edit');
+    Route::put('/workspaces/{workspace}/categorias/{categoria}', [CategoriaActivoController::class, 'update'])->name('workspaces.categorias.update');
+    Route::delete('/workspaces/{workspace}/categorias/{categoria}', [CategoriaActivoController::class, 'destroy'])->name('workspaces.categorias.destroy');
+    Route::get('/workspaces/{workspace}/activos', [ActivoController::class, 'index'])->name('workspaces.activos.index');
+    Route::get('/workspaces/{workspace}/activos/create', [ActivoController::class, 'create'])->name('workspaces.activos.create');
+    Route::post('/workspaces/{workspace}/activos', [ActivoController::class, 'store'])->name('workspaces.activos.store');
+    Route::get('/workspaces/{workspace}/activos/{activo}', [ActivoController::class, 'show'])->name('workspaces.activos.show');
+    Route::get('/workspaces/{workspace}/activos/{activo}/edit', [ActivoController::class, 'edit'])->name('workspaces.activos.edit');
+    Route::put('/workspaces/{workspace}/activos/{activo}', [ActivoController::class, 'update'])->name('workspaces.activos.update');
+    Route::delete('/workspaces/{workspace}/activos/{activo}', [ActivoController::class, 'destroy'])->name('workspaces.activos.destroy');
+    Route::post('/workspaces/{workspace}/activos/{activo}/contactos', [ActivoContactoController::class, 'store'])->name('workspaces.activos.contactos.store');
+    Route::get('/workspaces/{workspace}/activos/{activo}/contactos/{contacto}/edit', [ActivoContactoController::class, 'edit'])->name('workspaces.activos.contactos.edit');
+    Route::put('/workspaces/{workspace}/activos/{activo}/contactos/{contacto}', [ActivoContactoController::class, 'update'])->name('workspaces.activos.contactos.update');
+    Route::delete('/workspaces/{workspace}/activos/{activo}/contactos/{contacto}', [ActivoContactoController::class, 'destroy'])->name('workspaces.activos.contactos.destroy');
+    Route::post('/workspaces/{workspace}/activos/{activo}/documentos', [ActivoDocumentoController::class, 'store'])->name('workspaces.activos.documentos.store');
+    Route::get('/workspaces/{workspace}/activos/{activo}/documentos/{documento}/download', [ActivoDocumentoController::class, 'download'])->name('workspaces.activos.documentos.download');
+    Route::delete('/workspaces/{workspace}/activos/{activo}/documentos/{documento}', [ActivoDocumentoController::class, 'destroy'])->name('workspaces.activos.documentos.destroy');
+    Route::get('/workspaces/{workspace}/eventos', [ActivoEventoController::class, 'index'])->name('workspaces.eventos.index');
+    Route::post('/workspaces/{workspace}/activos/{activo}/eventos', [ActivoEventoController::class, 'store'])->name('workspaces.activos.eventos.store');
+    Route::get('/workspaces/{workspace}/activos/{activo}/eventos/{evento}/edit', [ActivoEventoController::class, 'edit'])->name('workspaces.activos.eventos.edit');
+    Route::put('/workspaces/{workspace}/activos/{activo}/eventos/{evento}', [ActivoEventoController::class, 'update'])->name('workspaces.activos.eventos.update');
+    Route::delete('/workspaces/{workspace}/activos/{activo}/eventos/{evento}', [ActivoEventoController::class, 'destroy'])->name('workspaces.activos.eventos.destroy');
+    Route::post('/workspaces/{workspace}/activos/{activo}/eventos/{evento}/evidencias', [ActivoEventoEvidenciaController::class, 'store'])->name('workspaces.activos.eventos.evidencias.store');
+    Route::get('/workspaces/{workspace}/activos/{activo}/eventos/{evento}/evidencias/{evidencia}/download', [ActivoEventoEvidenciaController::class, 'download'])->name('workspaces.activos.eventos.evidencias.download');
+    Route::delete('/workspaces/{workspace}/activos/{activo}/eventos/{evento}/evidencias/{evidencia}', [ActivoEventoEvidenciaController::class, 'destroy'])->name('workspaces.activos.eventos.evidencias.destroy');
     Route::get('/projects/{project}/tasks', [TaskController::class, 'index'])->name('projects.tasks.index');
     Route::get('/projects/{project}/tasks/create', [TaskController::class, 'create'])->name('projects.tasks.create');
     Route::post('/projects/{project}/tasks', [TaskController::class, 'store'])->name('projects.tasks.store');

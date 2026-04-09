@@ -2,11 +2,75 @@
 @php
   // $statuses: collection
   // $tasksByStatus: array keyed by status_id
+  $businessSecondsBetween = function ($from, $to) {
+      if (!$from || !$to) {
+          return null;
+      }
+
+      $start = \Illuminate\Support\Carbon::parse($from);
+      $end = \Illuminate\Support\Carbon::parse($to);
+
+      if ($end->lessThanOrEqualTo($start)) {
+          return 0;
+      }
+
+      $blocks = [
+          [[8, 0], [12, 0]],
+          [[13, 0], [17, 0]],
+      ];
+
+      $cursor = $start->copy()->startOfDay();
+      $lastDay = $end->copy()->startOfDay();
+      $seconds = 0;
+
+      while ($cursor->lessThanOrEqualTo($lastDay)) {
+          if ($cursor->isWeekday()) {
+              foreach ($blocks as [$blockStart, $blockEnd]) {
+                  $blockFrom = $cursor->copy()->setTime($blockStart[0], $blockStart[1], 0);
+                  $blockTo = $cursor->copy()->setTime($blockEnd[0], $blockEnd[1], 0);
+
+                  $effectiveFrom = $start->greaterThan($blockFrom) ? $start : $blockFrom;
+                  $effectiveTo = $end->lessThan($blockTo) ? $end : $blockTo;
+
+                  if ($effectiveTo->greaterThan($effectiveFrom)) {
+                      $seconds += $effectiveTo->diffInSeconds($effectiveFrom);
+                  }
+              }
+          }
+
+          $cursor->addDay();
+      }
+
+      return $seconds;
+  };
+
+  $formatBusinessDuration = function ($seconds) {
+      if ($seconds === null) {
+          return 'Sin datos';
+      }
+
+      $seconds = max(0, (int) $seconds);
+      $hours = intdiv($seconds, 3600);
+      $minutes = intdiv($seconds % 3600, 60);
+      $days = intdiv($hours, 8);
+      $remainingHours = $hours % 8;
+
+      $parts = [];
+      if ($days > 0) {
+          $parts[] = $days.'d';
+      }
+      if ($remainingHours > 0 || $days > 0) {
+          $parts[] = $remainingHours.'h';
+      }
+      $parts[] = $minutes.'m';
+
+      return implode(' ', $parts);
+  };
 @endphp
 
 <style>
   .gp-kanban { display:flex; gap:12px; overflow:auto; padding-bottom: 6px; }
-  .gp-col { min-width: 320px; max-width: 320px; }
+  .gp-col { min-width: 400px; max-width: 400px; }
   .gp-col-head{
     display:flex; align-items:center; justify-content:space-between;
     padding: 10px 12px;
@@ -64,17 +128,41 @@
   .gp-time-badge {
     display: inline-flex;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
     gap: 8px;
-    padding: 6px 12px;
+    padding: 6px 10px;
     border-radius: 8px;
     border: 1px solid #D1D5DB;
     background: #F3F4F6;
     font-size: 16px;
     font-weight: 600;
     color: #374151;
-    min-width: 92px;
-    letter-spacing: 1px;
+    min-width: 154px;
+    max-width: 154px;
+    min-height: 48px;
+    letter-spacing: .4px;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .gp-time-badge-body{
+    display:flex;
+    flex-direction:column;
+    align-items:flex-start;
+    min-width:0;
+    line-height:1.05;
+  }
+  .gp-time-label{
+    font-size:10px;
+    font-weight:800;
+    text-transform:uppercase;
+    letter-spacing:.5px;
+    opacity:.82;
+    margin-bottom:2px;
+  }
+  .gp-time-text{
+    font-size:15px;
+    font-weight:700;
+    line-height:1.1;
   }
 
   /* ✅ botón/icono clickeable (paperclip) dentro del badge */
@@ -107,6 +195,81 @@
     background: #F3F4F6;
     color: #374151;
   }
+
+  .gp-done-group{
+    margin-bottom: 10px;
+    border: 1px solid rgba(0,0,0,.06);
+    border-radius: 10px;
+    background: rgba(255,255,255,.72);
+  }
+  .gp-done-group summary{
+    list-style: none;
+    cursor: pointer;
+    padding: 10px 12px;
+    font-weight: 800;
+    font-size: 13px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+  }
+  .gp-done-group summary::-webkit-details-marker{ display:none; }
+  .gp-done-group-count{
+    font-size: 12px;
+    opacity: .7;
+    font-weight: 700;
+  }
+  .gp-done-group-body{
+    padding: 0 10px 10px;
+  }
+  .gp-done-group-open{
+    margin-bottom: 10px;
+  }
+  .gp-done-group-open .gp-done-group-title{
+    padding: 8px 2px 10px;
+    font-size: 13px;
+    font-weight: 800;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+  }
+  .gp-card-done{
+    cursor: pointer;
+    padding: 10px 12px;
+  }
+  .gp-card-done .gp-card-top{
+    margin-bottom: 4px;
+  }
+  .gp-card-done-title{
+    font-weight: 800;
+    font-size: 13px;
+    line-height: 1.3;
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .gp-card-done-meta,
+  .gp-card-done-extra,
+  .gp-card-done-desc{
+    font-size: 12px;
+    color: rgba(15,23,42,.72);
+    line-height: 1.35;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .gp-card-done-meta{
+    -webkit-line-clamp: 1;
+    margin-bottom: 2px;
+  }
+  .gp-card-done-extra{
+    -webkit-line-clamp: 1;
+    margin-bottom: 2px;
+  }
+  .gp-card-done-desc{
+    -webkit-line-clamp: 1;
+  }
 </style>
 
 <div class="gp-kanban" id="gpKanban">
@@ -116,6 +279,53 @@
     $list  = $tasksByStatus[$st->id] ?? collect();
     $count = is_countable($list) ? count($list) : $list->count();
     $stColor = $st->color ?: '#6B7280';
+    $isDoneColumn = strtolower((string)($st->slug ?? '')) === 'done' || ($st->estado ?? null) === 'APROBADO';
+    $doneGroups = collect();
+
+    if ($isDoneColumn) {
+      $now = \Illuminate\Support\Carbon::now();
+      $startOfWeek = $now->copy()->startOfWeek();
+      $startOfLastWeek = $startOfWeek->copy()->subWeek();
+      $startOfMonth = $now->copy()->startOfMonth();
+      $startOfLastMonth = $startOfMonth->copy()->subMonth();
+      $startOfYear = $now->copy()->startOfYear();
+
+      $doneGroups = collect([
+        ['key' => 'today', 'label' => 'Hoy', 'items' => collect()],
+        ['key' => 'yesterday', 'label' => 'Ayer', 'items' => collect()],
+        ['key' => 'early_week', 'label' => 'Al principio de esta semana', 'items' => collect()],
+        ['key' => 'last_week', 'label' => 'La semana pasada', 'items' => collect()],
+        ['key' => 'last_month', 'label' => 'El mes pasado', 'items' => collect()],
+        ['key' => 'early_year', 'label' => 'Al principio de este año', 'items' => collect()],
+        ['key' => 'long_time', 'label' => 'Hace mucho tiempo', 'items' => collect()],
+      ])->keyBy('key');
+
+      foreach ($list as $doneTask) {
+        $completedAt = $doneTask->completed_at ?? $doneTask->updated_at ?? $doneTask->created_at ?? null;
+        $completedAt = $completedAt ? \Illuminate\Support\Carbon::parse($completedAt) : null;
+
+        $bucket = 'long_time';
+        if ($completedAt) {
+          if ($completedAt->isToday()) {
+            $bucket = 'today';
+          } elseif ($completedAt->isYesterday()) {
+            $bucket = 'yesterday';
+          } elseif ($completedAt->greaterThanOrEqualTo($startOfWeek)) {
+            $bucket = 'early_week';
+          } elseif ($completedAt->greaterThanOrEqualTo($startOfLastWeek) && $completedAt->lt($startOfWeek)) {
+            $bucket = 'last_week';
+          } elseif ($completedAt->greaterThanOrEqualTo($startOfLastMonth) && $completedAt->lt($startOfMonth)) {
+            $bucket = 'last_month';
+          } elseif ($completedAt->greaterThanOrEqualTo($startOfYear)) {
+            $bucket = 'early_year';
+          }
+        }
+
+        $group = $doneGroups->get($bucket);
+        $group['items'] = $group['items']->push($doneTask);
+        $doneGroups->put($bucket, $group);
+      }
+    }
   @endphp
 
   <div class="gp-panel gp-col">
@@ -125,89 +335,154 @@
     </div>
 
     <div class="gp-dropzone" data-status-id="{{ $st->id }}">
-      @foreach($list as $t)
-        @php
-          $payload = [
-            'id'          => $t->id,
-            'project_id'  => $t->project_id,
-            'nodo_id'     => $t->nodo_id,
-            'title'       => $t->title,
-            'description' => $t->description,
-            'status_id'   => $t->status_id,
-            'priority'    => $t->priority,
-            'start_at'    => $t->start_at ? \Illuminate\Support\Carbon::parse($t->start_at)->format('Y-m-d') : null,
-            'due_at'      => $t->due_at ? \Illuminate\Support\Carbon::parse($t->due_at)->format('Y-m-d') : null,
-          ];
+      @php
+        $renderTaskCard = function ($t) use ($st, $stColor, $isDoneColumn, $businessSecondsBetween, $formatBusinessDuration) {
+            $payload = [
+                'id'          => $t->id,
+                'project_id'  => $t->project_id,
+                'nodo_id'     => $t->nodo_id,
+                'title'       => $t->title,
+                'description' => $t->description,
+                'status_id'   => $t->status_id,
+                'priority'    => $t->priority,
+                'start_at'    => $t->start_at ? \Illuminate\Support\Carbon::parse($t->start_at)->format('Y-m-d') : null,
+                'due_at'      => $t->due_at ? \Illuminate\Support\Carbon::parse($t->due_at)->format('Y-m-d') : null,
+            ];
 
-          $payloadJson = json_encode(
-            $payload,
-            JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT
-          );
-        @endphp
+            $payloadJson = json_encode(
+                $payload,
+                JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT
+            );
+            $payloadJsonAttr = e($payloadJson);
+            $taskTitle = e($t->title);
+            $taskDescription = e((string) ($t->description ?? 'Sin descripcion registrada.'));
+            $completedAt = $t->completed_at ?? $t->updated_at ?? $t->created_at ?? null;
+            $completedLabel = $completedAt ? \Illuminate\Support\Carbon::parse($completedAt)->format('Y-m-d H:i') : 'Sin fecha';
+            $startedAt = $t->start_at ?? $t->created_at ?? null;
+            $durationSeconds = $businessSecondsBetween($startedAt, $completedAt);
+            $durationLabel = $formatBusinessDuration($durationSeconds);
+            $doneMeta = 'Duracion real: '.e($durationLabel);
+            $doneExtra = 'Finalizada: '.e($completedLabel);
+            if (!empty($t->priority)) {
+                $doneExtra .= ' · P'.$t->priority;
+            }
 
-        <div class="gp-card js-task"
-             draggable="true"
-             data-task-id="{{ $t->id }}"
-             data-task="{{ $payloadJson }}">
+            $priorityColor = match((int)$t->priority) {
+                1 => '#DC2626',
+                2 => '#EA580C',
+                3 => '#D97706',
+                4 => '#2563EB',
+                5 => '#6B7280',
+                default => '#6B7280'
+            };
 
-          <div class="gp-card-top">
-            <div class="gp-card-title text-truncate">{{ $t->title }}</div>
-          </div>
+            if ($isDoneColumn) {
+                return <<<HTML
+<div class="gp-card gp-card-done js-task" draggable="true" data-task-id="{$t->id}" data-task="{$payloadJsonAttr}">
+  <div class="gp-card-top">
+    <div class="gp-card-done-title">{$taskTitle}</div>
+  </div>
+  <div class="gp-card-done-meta">{$doneMeta}</div>
+  <div class="gp-card-done-extra">{$doneExtra}</div>
+  <div class="gp-card-done-desc">{$taskDescription}</div>
+</div>
+HTML;
+            }
 
-          <div class="gp-card-meta">
-            @if($t->priority)
-              <span style="display:flex; gap:10px; align-items:center;">
-                <span class="gp-priority-badge">
-                  <i class="bi bi-flag-fill" style="color: {{ $stColor }};"></i>
+            return <<<HTML
+<div class="gp-card js-task" draggable="true" data-task-id="{$t->id}" data-task="{$payloadJsonAttr}">
+  <div class="gp-card-top">
+    <div class="gp-card-title text-truncate">{$taskTitle}</div>
+  </div>
+  <div class="gp-card-meta">
+HTML
+            . (
+                $t->priority
+                ? <<<HTML
+      <span style="display:flex; gap:10px; align-items:center;">
+        <span class="gp-priority-badge">
+          <i class="bi bi-flag-fill" style="color: {$stColor};"></i>
+          <i class="bi bi-{$t->priority}-circle-fill" style="color: {$priorityColor};"></i>
+          <i class="bi bi-paperclip"></i>
+          <span class="gp-icon-btn js-open-task-activities" title="Ver actividades" data-task-id="{$t->id}">
+            <i class="bi bi-chat-dots"></i>
+          </span>
+          <span class="gp-icon-btn js-open-task-modal" title="Editar la tarea" data-task-id="{$t->id}">
+            <i class="bi bi-pencil"></i>
+          </span>
+        </span>
+HTML
+                . (
+                    (($st->estado ?? null) !== 'APROBADO')
+                    ? <<<HTML
+        <span class="gp-time-badge js-time-badge gp-time-badge--ok js-open-task-activities"
+              title="Ver actividades"
+              data-task-id="{$t->id}"
+              data-created-at="{$t->created_at?->toIso8601String()}"
+              data-due-at="{$t->due_at?->toIso8601String()}"
+              data-estado="{$st->estado}">
+          <i class="bi bi-smartwatch"></i>
+          <span class="gp-time-badge-body">
+            <span class="gp-time-label js-time-label">Restante</span>
+            <span class="js-time-text gp-time-text">..</span>
+          </span>
+        </span>
+HTML
+                    : ''
+                )
+                . '</span>'
+                : ''
+            )
+            . (
+                $t->start_at
+                ? '<span><i class="bi bi-play"></i> '.\Illuminate\Support\Carbon::parse($t->start_at)->format('Y-m-d').'</span>'
+                : ''
+            )
+            . (
+                $t->due_at
+                ? '<span><i class="bi bi-calendar2-check"></i> '.\Illuminate\Support\Carbon::parse($t->due_at)->format('Y-m-d').'</span>'
+                : ''
+            )
+            . <<<HTML
+  </div>
+</div>
+HTML;
+        };
+      @endphp
 
-                  @php
-                    $priorityColor = match((int)$t->priority) {
-                        1 => '#DC2626',
-                        2 => '#EA580C',
-                        3 => '#D97706',
-                        4 => '#2563EB',
-                        5 => '#6B7280',
-                        default => '#6B7280'
-                    };
-                  @endphp
+      @if($isDoneColumn)
+        @foreach($doneGroups->values() as $group)
+          @continue($group['items']->isEmpty())
 
-                  <i class="bi bi-{{ $t->priority }}-circle-fill" style="color: {{ $priorityColor }};"></i>
-                  <i class="bi bi-paperclip"></i>
-                  <span class="gp-icon-btn js-open-task-activities"
-                        title="Ver actividades"
-                        data-task-id="{{ $t->id }}">
-                    <i class="bi bi-chat-dots"></i>
-                  </span>
-                  <span class="gp-icon-btn js-open-task-modal"
-                        title="Editar la tarea"
-                        data-task-id="{{ $t->id }}">
-                    <i class="bi bi-pencil"></i>
-                  </span>
-                </span>
-
-                   @if(($st->estado ?? null) !== 'APROBADO')
-                    <span class="gp-time-badge js-time-badge gp-time-badge--ok"
-                          data-created-at="{{ $t->created_at ? \Illuminate\Support\Carbon::parse($t->created_at)->toIso8601String() : '' }}"
-                          data-due-at="{{ $t->due_at ? \Illuminate\Support\Carbon::parse($t->due_at)->toIso8601String() : '' }}"
-                          data-estado="{{ $st->estado ?? '' }}">
-                      <i class="bi bi-smartwatch" style="margin-right:6px;"></i>
-                      <span class="js-time-text">..</span>
-                    </span>
-                  @endif
-              </span>
-            @endif
-
-            @if($t->start_at)
-              <span><i class="bi bi-play"></i> {{ \Illuminate\Support\Carbon::parse($t->start_at)->format('Y-m-d') }}</span>
-            @endif
-
-            @if($t->due_at)
-              <span><i class="bi bi-calendar2-check"></i> {{ \Illuminate\Support\Carbon::parse($t->due_at)->format('Y-m-d') }}</span>
-            @endif
-          </div>
-
-        </div>
-      @endforeach
+          @if($group['key'] === 'today')
+            <div class="gp-done-group-open">
+              <div class="gp-done-group-title">
+                <span>{{ $group['label'] }}</span>
+                <span class="gp-done-group-count">{{ $group['items']->count() }}</span>
+              </div>
+              @foreach($group['items'] as $t)
+                {!! $renderTaskCard($t) !!}
+              @endforeach
+            </div>
+          @else
+            <details class="gp-done-group">
+              <summary>
+                <span>{{ $group['label'] }}</span>
+                <span class="gp-done-group-count">{{ $group['items']->count() }}</span>
+              </summary>
+              <div class="gp-done-group-body">
+                @foreach($group['items'] as $t)
+                  {!! $renderTaskCard($t) !!}
+                @endforeach
+              </div>
+            </details>
+          @endif
+        @endforeach
+      @else
+        @foreach($list as $t)
+          {!! $renderTaskCard($t) !!}
+        @endforeach
+      @endif
     </div>
   </div>
 @endforeach
@@ -268,6 +543,7 @@
       if (
         e.target.closest('.js-open-task-modal') ||
         e.target.closest('.js-open-task-activities') ||
+        e.target.closest('.js-time-badge') ||
         e.target.closest('.js-open-files')
       ) {
         return;
@@ -293,7 +569,8 @@
     document.addEventListener('mousedown', (e) => {
       if (
         e.target.closest('.js-open-task-modal') ||
-        e.target.closest('.js-open-task-activities')
+        e.target.closest('.js-open-task-activities') ||
+        e.target.closest('.js-time-badge')
       ) {
         e.preventDefault();
         e.stopPropagation();
@@ -473,11 +750,16 @@
     return total;
   }
 
-  function fmtHMS(totalSeconds){
+  function fmtBusinessClock(totalSeconds){
     const s = Math.max(0, Math.floor(totalSeconds));
-    const hh = String(Math.floor(s / 3600)).padStart(2,'0');
+    const totalHours = Math.floor(s / 3600);
+    const days = Math.floor(totalHours / 8);
+    const hh = String(totalHours % 8).padStart(2,'0');
     const mm = String(Math.floor((s % 3600) / 60)).padStart(2,'0');
     const ss = String(s % 60).padStart(2,'0');
+    if (days > 0) {
+      return `${days}d ${hh}:${mm}:${ss}`;
+    }
     return `${hh}:${mm}:${ss}`;
   }
 
@@ -486,25 +768,46 @@
     badge.classList.add(state);
   }
 
+  function normalizeDueDate(due){
+    if (!(due instanceof Date) || isNaN(due.getTime())) return due;
+
+    // Si la fecha limite viene sin hora efectiva, asumimos cierre de jornada.
+    if (
+      due.getHours() === 0 &&
+      due.getMinutes() === 0 &&
+      due.getSeconds() === 0 &&
+      due.getMilliseconds() === 0
+    ) {
+      const normalized = new Date(due);
+      normalized.setHours(17, 0, 0, 0);
+      return normalized;
+    }
+
+    return due;
+  }
+
   function updateTimeBadges(){
     const now = new Date();
 
     document.querySelectorAll('.js-time-badge').forEach(badge => {
       const dueIso = (badge.getAttribute('data-due-at') || '').trim();
       const createdIso = (badge.getAttribute('data-created-at') || '').trim();
+      const labelEl = badge.querySelector('.js-time-label');
       const textEl = badge.querySelector('.js-time-text');
-      if (!textEl) return;
+      if (!textEl || !labelEl) return;
 
-      const due = dueIso ? new Date(dueIso) : null;
+      const due = dueIso ? normalizeDueDate(new Date(dueIso)) : null;
       const created = createdIso ? new Date(createdIso) : null;
 
       // Si no hay due_at → contar ascendente desde created_at (si existe)
-      if (!dueIso || !due || isNaN(due.getTime())){
+        if (!dueIso || !due || isNaN(due.getTime())){
         if (created && !isNaN(created.getTime())){
           const secs = businessSecondsBetween(created, now);
-          textEl.textContent = fmtHMS(secs);
+          labelEl.textContent = 'En curso';
+          textEl.textContent = fmtBusinessClock(secs);
           setBadgeState(badge, 'gp-time-badge--nodue');
         } else {
+          labelEl.textContent = 'En curso';
           textEl.textContent = '00:00:00';
           setBadgeState(badge, 'gp-time-badge--nodue');
         }
@@ -515,12 +818,14 @@
       if (due > now){
         // Regresiva (tiempo restante) → verde
         const secs = businessSecondsBetween(now, due);
-        textEl.textContent = fmtHMS(secs);
+        labelEl.textContent = 'Restante';
+        textEl.textContent = fmtBusinessClock(secs);
         setBadgeState(badge, 'gp-time-badge--ok');
       } else {
         // Ascendente (tiempo vencido) → rojo
         const secs = businessSecondsBetween(due, now);
-        textEl.textContent = fmtHMS(secs);
+        labelEl.textContent = 'Atraso';
+        textEl.textContent = fmtBusinessClock(secs);
         setBadgeState(badge, 'gp-time-badge--late');
       }
     });

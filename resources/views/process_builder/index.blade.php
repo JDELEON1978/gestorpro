@@ -28,6 +28,8 @@
   .port.out{ background:#198754; }
 
   .node-edit{ border:1px solid rgba(15,23,42,.12); }
+  .builder-toolbar{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .builder-zoom-badge{ min-width:64px; text-align:center; font-size:12px; color:#475569; }
 </style>
 
 <div class="container-fluid">
@@ -60,6 +62,11 @@
               data-descripcion="{{ $proceso->descripcion }}">
         Editar Proceso
       </button>
+      <a class="btn btn-sm btn-outline-secondary"
+         href="{{ route('process.builder.print', $proceso) }}"
+         target="_blank" rel="noopener">
+        Imprimir
+      </a>
       @endif
     </div>
   </div>
@@ -67,15 +74,25 @@
   <div class="row g-0">
     {{-- Canvas --}}
     <div class="col-9 pe-3">
-      <div class="border bg-white" style="min-height: 78vh; position: relative; overflow:auto;">
+      <div class="border bg-white" style="min-height: 78vh; position: relative;">
         <div class="p-2 d-flex justify-content-between align-items-center">
-          <div>
+          <div class="builder-toolbar">
             @if($proceso)
               <button class="btn btn-sm btn-link"
                       data-bs-toggle="modal" data-bs-target="#modalNodoCreate">
                 + Añadir NODO ..
               </button>
             @endif
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="btnZoomOut" title="Alejar">
+              <i class="bi bi-dash-lg"></i>
+            </button>
+            <div class="builder-zoom-badge" id="builderZoomLabel">100%</div>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="btnZoomIn" title="Acercar">
+              <i class="bi bi-plus-lg"></i>
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="btnCenterCanvas" title="Centrar canvas">
+              Centrar canvas
+            </button>
           </div>
 
           <div class="small text-muted">
@@ -84,42 +101,50 @@
           </div>
         </div>
 
-        <div id="builderCanvas"
-             data-proceso-id="{{ $proceso?->id }}"
+        <div id="builderCanvasViewport"
              style="
                position:relative;
                height: calc(78vh - 44px);
-               background:
-                 radial-gradient(circle, rgba(15,23,42,.12) 1px, transparent 1px) 0 0 / 18px 18px;
+               overflow:auto;
              ">
+          <div id="builderCanvas"
+               data-proceso-id="{{ $proceso?->id }}"
+               style="
+                 position:relative;
+                 min-width: 2200px;
+                 min-height: 1600px;
+                 transform-origin: top left;
+                 background:
+                   radial-gradient(circle, rgba(15,23,42,.12) 1px, transparent 1px) 0 0 / 18px 18px;
+               ">
 
-          {{-- SVG para flechas --}}
-          <svg id="linkLayer" style="position:absolute; inset:0; width:100%; height:100%; pointer-events:none;">
-            <defs>
-              <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
-                <path d="M0,0 L10,3 L0,6 Z"></path>
-              </marker>
-            </defs>
-          </svg>
+            {{-- SVG para flechas --}}
+            <svg id="linkLayer" style="position:absolute; inset:0; width:100%; height:100%; pointer-events:none;">
+              <defs>
+                <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                  <path d="M0,0 L10,3 L0,6 Z"></path>
+                </marker>
+              </defs>
+            </svg>
 
-          {{-- NODOS --}}
-          @foreach($nodos as $idx => $n)
-            @php
-              $x = $n->pos_x ?? 120;
-              $y = $n->pos_y ?? (120 + ($idx * 110));
-            @endphp
+            {{-- NODOS --}}
+            @foreach($nodos as $idx => $n)
+              @php
+                $x = $n->pos_x ?? 120;
+                $y = $n->pos_y ?? (120 + ($idx * 110));
+              @endphp
 
-            <div class="node-card"
-                 data-id="{{ $n->id }}"
-                 data-tipo="{{ $n->tipo_nodo }}"
-                 style="
-                    position:absolute;
-                    left: {{ $x }}px;
-                    top:  {{ $y }}px;
-                    width: 260px;
-                    cursor: grab;
-                    padding: 12px 12px 10px 12px;
-                 ">
+              <div class="node-card"
+                   data-id="{{ $n->id }}"
+                   data-tipo="{{ $n->tipo_nodo }}"
+                   style="
+                      position:absolute;
+                      left: {{ $x }}px;
+                      top:  {{ $y }}px;
+                      width: 260px;
+                      cursor: grab;
+                      padding: 12px 12px 10px 12px;
+                   ">
 
               {{-- PORT IN base (1) --}}
               <span class="port in"
@@ -153,9 +178,9 @@
 
               <div class="fw-semibold">{{ $n->nombre }}</div>
               <div class="text-muted small">{{ $n->tipo_nodo }} · orden {{ $n->orden }}</div>
-            </div>
-          @endforeach
-
+              </div>
+            @endforeach
+          </div>
         </div>
       </div>
     </div>
@@ -765,10 +790,17 @@
 (function () {
   const canvas = document.getElementById('builderCanvas');
   if (!canvas) return;
+  const viewport = document.getElementById('builderCanvasViewport');
+  const btnZoomIn = document.getElementById('btnZoomIn');
+  const btnZoomOut = document.getElementById('btnZoomOut');
+  const btnCenterCanvas = document.getElementById('btnCenterCanvas');
+  const zoomLabel = document.getElementById('builderZoomLabel');
 
   const procesoId = canvas.dataset.procesoId;
   const svg = document.getElementById('linkLayer');
   const CSRF = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+  const baseCanvasWidth = 2200;
+  const baseCanvasHeight = 1600;
 
   const state = {
     links: [],
@@ -776,7 +808,78 @@
     dragging: null,
     dragOffsetX: 0,
     dragOffsetY: 0,
+    zoom: 1,
+    selectedRelId: null,
   };
+
+  function clamp(v, min, max){ return Math.max(min, Math.min(max, v)); }
+
+  function currentCanvasWidth(){
+    return parseInt(canvas.style.width || canvas.clientWidth, 10) || baseCanvasWidth;
+  }
+
+  function currentCanvasHeight(){
+    return parseInt(canvas.style.height || canvas.clientHeight, 10) || baseCanvasHeight;
+  }
+
+  function syncCanvasSize(width, height){
+    canvas.style.width = `${Math.max(baseCanvasWidth, width)}px`;
+    canvas.style.height = `${Math.max(baseCanvasHeight, height)}px`;
+  }
+
+  function ensureCanvasBounds(minX, minY, nodeEl = null){
+    const margin = 220;
+    const nodeWidth = nodeEl ? nodeEl.offsetWidth : 260;
+    const nodeHeight = nodeEl ? nodeEl.offsetHeight : 120;
+    let nextWidth = currentCanvasWidth();
+    let nextHeight = currentCanvasHeight();
+
+    if ((minX + nodeWidth + margin) > nextWidth) {
+      nextWidth = minX + nodeWidth + margin;
+    }
+
+    if ((minY + nodeHeight + margin) > nextHeight) {
+      nextHeight = minY + nodeHeight + margin;
+    }
+
+    syncCanvasSize(nextWidth, nextHeight);
+  }
+
+  function setCanvasZoom(nextZoom, anchorX = 0, anchorY = 0){
+    const prevZoom = state.zoom;
+    state.zoom = clamp(nextZoom, 0.5, 1.8);
+
+    const logicalX = (viewport.scrollLeft + anchorX) / prevZoom;
+    const logicalY = (viewport.scrollTop + anchorY) / prevZoom;
+
+    canvas.style.transform = `scale(${state.zoom})`;
+    viewport.scrollLeft = Math.max(0, (logicalX * state.zoom) - anchorX);
+    viewport.scrollTop = Math.max(0, (logicalY * state.zoom) - anchorY);
+
+    if (zoomLabel) {
+      zoomLabel.textContent = `${Math.round(state.zoom * 100)}%`;
+    }
+
+    drawLinks();
+  }
+
+  function centerCanvas(){
+    viewport.scrollLeft = Math.max(0, ((currentCanvasWidth() * state.zoom) - viewport.clientWidth) / 2);
+    viewport.scrollTop = Math.max(0, ((currentCanvasHeight() * state.zoom) - viewport.clientHeight) / 2);
+    drawLinks();
+  }
+
+  btnZoomIn?.addEventListener('click', ()=>{
+    setCanvasZoom(state.zoom + 0.1, viewport.clientWidth / 2, viewport.clientHeight / 2);
+  });
+
+  btnZoomOut?.addEventListener('click', ()=>{
+    setCanvasZoom(state.zoom - 0.1, viewport.clientWidth / 2, viewport.clientHeight / 2);
+  });
+
+  btnCenterCanvas?.addEventListener('click', ()=>{
+    centerCanvas();
+  });
 
   // ============================================================
   // Registro nodos
@@ -784,6 +887,7 @@
   document.querySelectorAll('.node-card').forEach(el => {
     state.nodes.set(String(el.dataset.id), el);
     el.addEventListener('dragstart', (e)=> e.preventDefault());
+    ensureCanvasBounds(el.offsetLeft, el.offsetTop, el);
   });
 
   // ============================================================
@@ -797,8 +901,8 @@
       el.style.cursor = 'grabbing';
 
       const rect = el.getBoundingClientRect();
-      state.dragOffsetX = e.clientX - rect.left;
-      state.dragOffsetY = e.clientY - rect.top;
+      state.dragOffsetX = (e.clientX - rect.left) / state.zoom;
+      state.dragOffsetY = (e.clientY - rect.top) / state.zoom;
 
       e.preventDefault();
     });
@@ -808,11 +912,14 @@
     if (!state.dragging) return;
 
     const cRect = canvas.getBoundingClientRect();
-    let x = e.clientX - cRect.left - state.dragOffsetX;
-    let y = e.clientY - cRect.top - state.dragOffsetY;
+    const scrollLeft = viewport ? viewport.scrollLeft : 0;
+    const scrollTop = viewport ? viewport.scrollTop : 0;
+    let x = ((e.clientX - cRect.left) + scrollLeft) / state.zoom - state.dragOffsetX;
+    let y = ((e.clientY - cRect.top) + scrollTop) / state.zoom - state.dragOffsetY;
 
     x = Math.max(0, x);
     y = Math.max(0, y);
+    ensureCanvasBounds(x, y, state.dragging);
 
     state.dragging.style.left = `${x}px`;
     state.dragging.style.top  = `${y}px`;
@@ -902,6 +1009,17 @@
     }
   });
 
+  canvas.addEventListener('click', (e)=>{
+    const clickedPath = e.target.closest('path.link');
+    const clickedHandle = e.target.closest('circle.handle');
+    if (clickedPath || clickedHandle) return;
+
+    if (state.selectedRelId !== null) {
+      state.selectedRelId = null;
+      drawLinks();
+    }
+  });
+
   // ============================================================
   // Puertos múltiples solo en "decision"
   // ============================================================
@@ -959,8 +1077,6 @@
     startLeft: 0,
     startTop: 0,
   };
-
-  function clamp(v, min, max){ return Math.max(min, Math.min(max, v)); }
 
   function portKey(portEl){
     if(portEl.classList.contains('in')) return 'in';
@@ -1043,8 +1159,8 @@
     const portEl = portDrag.portEl;
     const nodeEl = portDrag.nodeEl;
 
-    const dx = e.clientX - portDrag.startX;
-    const dy = e.clientY - portDrag.startY;
+    const dx = (e.clientX - portDrag.startX) / state.zoom;
+    const dy = (e.clientY - portDrag.startY) / state.zoom;
 
     const nodeW = nodeEl.clientWidth;
     const nodeH = nodeEl.clientHeight;
@@ -1088,15 +1204,13 @@
   // (sirve para ports movibles)
   // ============================================================
   function portPointByEl(nodeEl, portSelector) {
-    const nodeRect = nodeEl.getBoundingClientRect();
-    const canvasRect = canvas.getBoundingClientRect();
     const portEl = nodeEl.querySelector(portSelector);
 
     const offL = portEl ? portEl.offsetLeft : 0;
     const offT = portEl ? portEl.offsetTop  : 22;
 
-    const x = (nodeRect.left - canvasRect.left) + offL + 7;
-    const y = (nodeRect.top  - canvasRect.top ) + offT + 7;
+    const x = nodeEl.offsetLeft + offL + 7;
+    const y = nodeEl.offsetTop + offT + 7;
 
     return { x, y };
   }
@@ -1182,6 +1296,15 @@
 
   // Eventos de drag sobre handles (delegación en el SVG)
   svg.addEventListener('mousedown', (e)=>{
+    const linkPath = e.target.closest('path.link');
+    if(linkPath){
+      e.preventDefault();
+      e.stopPropagation();
+      state.selectedRelId = linkPath.getAttribute('data-rel-id');
+      drawLinks();
+      return;
+    }
+
     const h = e.target.closest('circle.handle');
     if(!h) return;
 
@@ -1209,8 +1332,8 @@
   document.addEventListener('mousemove', (e)=>{
     if(!linkDrag.active) return;
 
-    const dx = e.clientX - linkDrag.startX;
-    const dy = e.clientY - linkDrag.startY;
+    const dx = (e.clientX - linkDrag.startX) / state.zoom;
+    const dy = (e.clientY - linkDrag.startY) / state.zoom;
 
     const newCx = linkDrag.startCx + dx;
     const newCy = linkDrag.startCy + dy;
@@ -1288,6 +1411,15 @@
       path.setAttribute('stroke-width', '2');
       path.setAttribute('marker-end', 'url(#arrow)');
       path.classList.add('link');
+      if(relId){
+        path.setAttribute('data-rel-id', relId);
+      }
+      path.style.pointerEvents = 'all';
+      path.style.cursor = 'pointer';
+      if(relId && String(state.selectedRelId) === relId){
+        path.setAttribute('stroke', 'rgba(13,110,253,.85)');
+        path.setAttribute('stroke-width', '3');
+      }
       svg.appendChild(path);
 
       // Label (si existe)
@@ -1303,7 +1435,7 @@
       }
 
       // ✅ ADICIÓN #9: dibujar handles solo si hay relId (si no, no hay dónde guardar)
-      if(relId){
+      if(relId && String(state.selectedRelId) === relId){
         upsertHandle(relId, 'c1', c1x, c1y);
         upsertHandle(relId, 'c2', c2x, c2y);
       }
@@ -1333,9 +1465,12 @@
   }
 
   window.addEventListener('resize', ()=>{ ensureDecisionPorts(); drawLinks(); });
+  viewport?.addEventListener('scroll', ()=>{ drawLinks(); });
 
   // ✅ ADICIÓN #8: aplicar posiciones guardadas apenas cargue UI
   applySavedPortPositionsAll();
+  setCanvasZoom(1);
+  centerCanvas();
 
   loadGraph();
 })();

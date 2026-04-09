@@ -83,6 +83,17 @@
                     </a>
                 </li>
 
+                @php
+                    $assetWorkspace = auth()->user()?->workspaces()->orderBy('workspaces.name')->first();
+                @endphp
+                @if($assetWorkspace)
+                    <li>
+                        <a class="dropdown-item" href="{{ route('workspaces.activos.index', $assetWorkspace) }}">
+                            <i class="bi bi-lightning-charge me-1"></i> Activos
+                        </a>
+                    </li>
+                @endif
+
                 <li><hr class="dropdown-divider"></li>
 
                 <li>

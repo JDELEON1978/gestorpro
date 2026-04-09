@@ -37,5 +37,24 @@ class Workspace extends Model
     {
         return $this->hasMany(Project::class);
     }
-}
 
+    public function centralesGeneracion(): HasMany
+    {
+        return $this->hasMany(CentralGeneracion::class, 'workspace_id');
+    }
+
+    public function categoriasActivos(): HasMany
+    {
+        return $this->hasMany(CategoriaActivo::class, 'workspace_id');
+    }
+
+    public function ubicacionesActivos(): HasMany
+    {
+        return $this->hasMany(UbicacionActivo::class, 'workspace_id');
+    }
+
+    public function activos(): HasMany
+    {
+        return $this->hasMany(Activo::class, 'workspace_id');
+    }
+}
