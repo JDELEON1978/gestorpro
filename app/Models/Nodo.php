@@ -19,6 +19,8 @@ class Nodo extends Model
         'activo',
         'responsable_rol_id',
         'descripcion',
+        'pos_x',
+        'pos_y',
         'in_side',
         'in_offset',
         'out_side',
@@ -28,6 +30,8 @@ class Nodo extends Model
 
     protected $casts = [
         'orden'  => 'integer',
+        'pos_x' => 'integer',
+        'pos_y' => 'integer',
         'sla_horas' => 'integer',
         'activo' => 'boolean',
     ];

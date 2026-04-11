@@ -446,6 +446,10 @@
         <div class="alert alert-info py-2" id="taskProcessInfo" style="display:none;">
           <div class="fw-semibold">Nodo inicio: <span id="taskNodoNombre">—</span></div>
           <div class="small text-muted" id="taskNodoDesc"></div>
+          <div class="small mt-1">
+            <span class="fw-semibold">SLA:</span>
+            <span id="taskNodoSla">—</span>
+          </div>
           <div class="small mt-2">
             <div class="fw-semibold">Ítems requeridos:</div>
             <ul class="mb-0" id="taskNodoItems"></ul>
@@ -509,15 +513,9 @@
       <div class="modal-footer d-flex align-items-center justify-content-between">
         <div id="taskTransWrap" style="display:none;">
           <div class="fw-semibold mb-2">Transiciones</div>
+          <div id="taskTransHint" class="small text-muted mb-2 d-none"></div>
           <div id="taskTransButtons" class="d-flex flex-wrap gap-2"></div>
         </div>
-
-        <button type="button"
-              class="btn gp-btn js-open-files"
-              id="btnOpenTaskFiles"
-              data-task-id="">
-        <i class="bi bi-paperclip me-1"></i> Archivos
-      </button>
 
         <div class="d-flex gap-2">
           <button type="button" class="btn gp-btn" data-bs-dismiss="modal">Cancelar</button>

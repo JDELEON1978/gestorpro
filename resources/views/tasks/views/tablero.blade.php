@@ -66,6 +66,28 @@
 
       return implode(' ', $parts);
   };
+
+  $formatElapsedDuration = function ($from, $to) {
+      if (!$from || !$to) {
+          return 'Sin datos';
+      }
+
+      $start = \Illuminate\Support\Carbon::parse($from);
+      $end = \Illuminate\Support\Carbon::parse($to);
+
+      $seconds = abs($end->diffInSeconds($start, false));
+      if ($seconds > 0 && $seconds < 60) {
+          $seconds = 60;
+      }
+
+      $totalMinutes = (int) ceil($seconds / 60);
+      $days = intdiv($totalMinutes, 24 * 60);
+      $remainingMinutes = $totalMinutes % (24 * 60);
+      $hours = intdiv($remainingMinutes, 60);
+      $minutes = $remainingMinutes % 60;
+
+      return $days.'d:'.$hours.'h:'.$minutes.'m';
+  };
 @endphp
 
 <style>
@@ -270,6 +292,14 @@
   .gp-card-done-desc{
     -webkit-line-clamp: 1;
   }
+  .gp-done-status-ok{
+    color: #15803d;
+    font-weight: 800;
+  }
+  .gp-done-status-late{
+    color: #b91c1c;
+    font-weight: 800;
+  }
 </style>
 
 <div class="gp-kanban" id="gpKanban">
@@ -336,7 +366,7 @@
 
     <div class="gp-dropzone" data-status-id="{{ $st->id }}">
       @php
-        $renderTaskCard = function ($t) use ($st, $stColor, $isDoneColumn, $businessSecondsBetween, $formatBusinessDuration) {
+        $renderTaskCard = function ($t) use ($st, $stColor, $isDoneColumn, $businessSecondsBetween, $formatBusinessDuration, $formatElapsedDuration) {
             $payload = [
                 'id'          => $t->id,
                 'project_id'  => $t->project_id,
@@ -345,8 +375,14 @@
                 'description' => $t->description,
                 'status_id'   => $t->status_id,
                 'priority'    => $t->priority,
+                'assignee_name' => $t->assignee?->name,
+                'creator_name' => $t->creator?->name,
+                'nodo_nombre' => $t->nodo?->nombre,
                 'start_at'    => $t->start_at ? \Illuminate\Support\Carbon::parse($t->start_at)->format('Y-m-d') : null,
                 'due_at'      => $t->due_at ? \Illuminate\Support\Carbon::parse($t->due_at)->format('Y-m-d') : null,
+                'sla_hours'   => $t->sla_hours,
+                'sla_started_at' => $t->sla_started_at?->toIso8601String(),
+                'sla_due_at'  => $t->sla_due_at?->toIso8601String(),
             ];
 
             $payloadJson = json_encode(
@@ -355,18 +391,27 @@
             );
             $payloadJsonAttr = e($payloadJson);
             $taskTitle = e($t->title);
-            $taskDescription = e((string) ($t->description ?? 'Sin descripcion registrada.'));
             $completedAt = $t->completed_at ?? $t->updated_at ?? $t->created_at ?? null;
-            $completedLabel = $completedAt ? \Illuminate\Support\Carbon::parse($completedAt)->format('Y-m-d H:i') : 'Sin fecha';
-            $startedAt = $t->start_at ?? $t->created_at ?? null;
-            $durationSeconds = $businessSecondsBetween($startedAt, $completedAt);
-            $durationLabel = $formatBusinessDuration($durationSeconds);
-            $doneMeta = 'Duracion real: '.e($durationLabel);
-            $doneExtra = 'Finalizada: '.e($completedLabel);
+            $startedAt = $t->started_at ?? $t->start_at ?? $t->created_at ?? null;
+            $durationLabel = $formatElapsedDuration($startedAt, $completedAt);
+            $doneMeta = 'Tiempo: '.e($durationLabel).' / SLA: '.e(!empty($t->sla_hours) ? ((int) $t->sla_hours).'h' : 'Sin SLA');
+            $slaDueAt = $t->sla_due_at ?? $t->due_at ?? null;
+            $isLateForSla = false;
+            if ($completedAt && $slaDueAt) {
+                $isLateForSla = \Illuminate\Support\Carbon::parse($completedAt)
+                    ->greaterThan(\Illuminate\Support\Carbon::parse($slaDueAt));
+            }
+            $doneUser = e($t->assignee?->name ?? $t->creator?->name ?? 'Sin usuario');
+            $doneCompliance = $isLateForSla
+                ? '<span class="gp-done-status-late">Con retraso</span>'
+                : '<span class="gp-done-status-ok">En tiempo</span>';
+            $doneExtra = $doneUser.' | '.$doneCompliance;
+            $doneProcessState = 'Estado del proceso: '.e($t->nodo?->nombre ?? 'Sin nodo').' Finalizado';
             if (!empty($t->priority)) {
                 $doneExtra .= ' · P'.$t->priority;
             }
 
+            $doneExtra = $doneUser.' | '.$doneCompliance;
             $priorityColor = match((int)$t->priority) {
                 1 => '#DC2626',
                 2 => '#EA580C',
@@ -384,7 +429,7 @@
   </div>
   <div class="gp-card-done-meta">{$doneMeta}</div>
   <div class="gp-card-done-extra">{$doneExtra}</div>
-  <div class="gp-card-done-desc">{$taskDescription}</div>
+  <div class="gp-card-done-desc">{$doneProcessState}</div>
 </div>
 HTML;
             }
@@ -403,7 +448,9 @@ HTML
         <span class="gp-priority-badge">
           <i class="bi bi-flag-fill" style="color: {$stColor};"></i>
           <i class="bi bi-{$t->priority}-circle-fill" style="color: {$priorityColor};"></i>
-          <i class="bi bi-paperclip"></i>
+          <span class="gp-icon-btn js-open-node-evidences" title="Subir archivos del nodo" data-task-id="{$t->id}">
+            <i class="bi bi-paperclip"></i>
+          </span>
           <span class="gp-icon-btn js-open-task-activities" title="Ver actividades" data-task-id="{$t->id}">
             <i class="bi bi-chat-dots"></i>
           </span>
@@ -418,6 +465,10 @@ HTML
         <span class="gp-time-badge js-time-badge gp-time-badge--ok js-open-task-activities"
               title="Ver actividades"
               data-task-id="{$t->id}"
+              data-sla-hours="{$t->sla_hours}"
+              data-sla-started-at="{$t->sla_started_at?->toIso8601String()}"
+              data-sla-due-at="{$t->sla_due_at?->toIso8601String()}"
+              data-started-at="{$t->started_at?->toIso8601String()}"
               data-created-at="{$t->created_at?->toIso8601String()}"
               data-due-at="{$t->due_at?->toIso8601String()}"
               data-estado="{$st->estado}">
@@ -512,6 +563,37 @@ HTML;
     return el?.closest?.('.gp-card') || null;
   }
 
+  function taskFromCard(card){
+    if (!card) return null;
+
+    const raw = card.getAttribute('data-task');
+    if (!raw) return null;
+
+    try {
+      return JSON.parse(raw);
+    } catch (err) {
+      console.error('data-task invalido', err);
+      return null;
+    }
+  }
+
+  function openNodeEvidencesForCard(card){
+    const task = taskFromCard(card);
+    if (!task) return;
+
+    if (typeof window.openTaskEvidencesModal === 'function') {
+      window.openTaskEvidencesModal(task);
+    } else if (typeof window.openEditTaskModal === 'function') {
+      window.openEditTaskModal(task);
+    }
+  }
+
+  function openEditForCard(card){
+    const task = taskFromCard(card);
+    if (!task || typeof window.openEditTaskModal !== 'function') return;
+    window.openEditTaskModal(task);
+  }
+
   // ✅ Abre modal solo desde paperclip:
   // - dispara el click “normal” de la tarjeta (si tu app ya lo usa para abrir modal)
   // - luego activa el tab/botón "Archivos"
@@ -542,6 +624,7 @@ HTML;
       // Permitir acciones explícitas dentro de la tarjeta
       if (
         e.target.closest('.js-open-task-modal') ||
+        e.target.closest('.js-open-node-evidences') ||
         e.target.closest('.js-open-task-activities') ||
         e.target.closest('.js-time-badge') ||
         e.target.closest('.js-open-files')
@@ -555,20 +638,31 @@ HTML;
 
   // ✅ Click solo en paperclip abre modal + archivos
   document.addEventListener('click', (e) => {
-    const btn = e.target.closest('.js-open-task-modal');
+    const btn = e.target.closest('.js-open-node-evidences');
     if (!btn) return;
 
     e.preventDefault();
     e.stopPropagation();
 
     const card = btn.closest('.gp-card');
-    openFilesForCard(card);
+    openNodeEvidencesForCard(card);
+  });
+
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.js-open-task-modal');
+    if (!btn) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    openEditForCard(btn.closest('.gp-card'));
   });
 
   // ✅ IMPORTANTÍSIMO: evitar que el drag se active cuando intentas clickear paperclip
     document.addEventListener('mousedown', (e) => {
       if (
         e.target.closest('.js-open-task-modal') ||
+        e.target.closest('.js-open-node-evidences') ||
         e.target.closest('.js-open-task-activities') ||
         e.target.closest('.js-time-badge')
       ) {
@@ -790,19 +884,29 @@ HTML;
     const now = new Date();
 
     document.querySelectorAll('.js-time-badge').forEach(badge => {
+      const slaStartedIso = (badge.getAttribute('data-sla-started-at') || '').trim();
+      const slaDueIso = (badge.getAttribute('data-sla-due-at') || '').trim();
       const dueIso = (badge.getAttribute('data-due-at') || '').trim();
+      const startedIso = (badge.getAttribute('data-started-at') || '').trim();
       const createdIso = (badge.getAttribute('data-created-at') || '').trim();
       const labelEl = badge.querySelector('.js-time-label');
       const textEl = badge.querySelector('.js-time-text');
       if (!textEl || !labelEl) return;
 
+      const slaStarted = slaStartedIso ? new Date(slaStartedIso) : null;
+      const slaDue = slaDueIso ? normalizeDueDate(new Date(slaDueIso)) : null;
       const due = dueIso ? normalizeDueDate(new Date(dueIso)) : null;
+      const started = startedIso ? new Date(startedIso) : null;
       const created = createdIso ? new Date(createdIso) : null;
+      const baseStart = (slaStarted && !isNaN(slaStarted.getTime()))
+        ? slaStarted
+        : ((created && !isNaN(created.getTime())) ? created : started);
+      const limit = (slaDue && !isNaN(slaDue.getTime())) ? slaDue : due;
 
-      // Si no hay due_at → contar ascendente desde created_at (si existe)
-        if (!dueIso || !due || isNaN(due.getTime())){
-        if (created && !isNaN(created.getTime())){
-          const secs = businessSecondsBetween(created, now);
+      // Si no hay fecha límite → contar ascendente desde inicio SLA/creación.
+      if (!limit || isNaN(limit.getTime())){
+        if (baseStart && !isNaN(baseStart.getTime())){
+          const secs = businessSecondsBetween(baseStart, now);
           labelEl.textContent = 'En curso';
           textEl.textContent = fmtBusinessClock(secs);
           setBadgeState(badge, 'gp-time-badge--nodue');
@@ -814,16 +918,16 @@ HTML;
         return;
       }
 
-      // due_at existe:
-      if (due > now){
+      // Fecha límite SLA o planificada:
+      if (limit > now){
         // Regresiva (tiempo restante) → verde
-        const secs = businessSecondsBetween(now, due);
+        const secs = businessSecondsBetween(now, limit);
         labelEl.textContent = 'Restante';
         textEl.textContent = fmtBusinessClock(secs);
         setBadgeState(badge, 'gp-time-badge--ok');
       } else {
-        // Ascendente (tiempo vencido) → rojo
-        const secs = businessSecondsBetween(due, now);
+        // Ascendente (tiempo vencido) → rojo.
+        const secs = businessSecondsBetween(limit, now);
         labelEl.textContent = 'Atraso';
         textEl.textContent = fmtBusinessClock(secs);
         setBadgeState(badge, 'gp-time-badge--late');

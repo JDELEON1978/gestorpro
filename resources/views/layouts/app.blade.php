@@ -66,7 +66,15 @@
 </div>
 
 
-    <div>
+    <div class="d-flex align-items-center gap-2">
+        <a href="{{ route('dashboard') }}"
+           class="btn btn-sm text-white"
+           title="Ir al dashboard"
+           aria-label="Ir al dashboard"
+           style="background: rgba(255,255,255,0.15); border:none;">
+            <i class="bi bi-house-door-fill"></i>
+        </a>
+
         <div class="dropdown">
             <button class="btn btn-sm text-white dropdown-toggle"
                     style="background: rgba(255,255,255,0.15); border:none;"

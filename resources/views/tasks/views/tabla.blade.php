@@ -24,6 +24,9 @@
             'description' => $t->description,
             'status_id'   => $t->status_id,
             'priority'    => $t->priority,
+            'sla_hours'   => $t->sla_hours,
+            'sla_started_at' => $t->sla_started_at?->toIso8601String(),
+            'sla_due_at'  => $t->sla_due_at?->toIso8601String(),
             'start_at'    => $t->start_at ? \Illuminate\Support\Carbon::parse($t->start_at)->format('Y-m-d') : null,
             'due_at'      => $t->due_at ? \Illuminate\Support\Carbon::parse($t->due_at)->format('Y-m-d') : null,
           ];

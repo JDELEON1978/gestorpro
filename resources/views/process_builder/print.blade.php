@@ -333,12 +333,14 @@
     $nodeWidth = 200;
     $nodeHeight = 92;
     $flowPadding = 36;
+    $titleBlockReservePx = 420;
+    $footerReservePx = 140;
     $minX = $nodos->min('pos_x') ?? 0;
     $minY = $nodos->min('pos_y') ?? 0;
     $maxX = $nodos->max(fn($n) => ($n->pos_x ?? 0) + $nodeWidth) ?? $nodeWidth;
     $maxY = $nodos->max(fn($n) => ($n->pos_y ?? 0) + $nodeHeight) ?? $nodeHeight;
-    $sourceWidth = max(900, ($maxX - $minX) + ($flowPadding * 2));
-    $sourceHeight = max(520, ($maxY - $minY) + ($flowPadding * 2));
+    $sourceWidth = max(1100, ($maxX - $minX) + ($flowPadding * 2) + $titleBlockReservePx);
+    $sourceHeight = max(620, ($maxY - $minY) + ($flowPadding * 2) + $footerReservePx);
     $frameWidthPx = 1420;
     $frameHeightPx = 860;
     $flowScale = min($frameWidthPx / $sourceWidth, $frameHeightPx / $sourceHeight, 1.24);

@@ -93,6 +93,9 @@
             <button type="button" class="btn btn-sm btn-outline-secondary" id="btnCenterCanvas" title="Centrar canvas">
               Centrar canvas
             </button>
+            <button type="button" class="btn btn-sm btn-outline-primary" id="btnAutoLayout" title="Orden automático">
+              Orden automático
+            </button>
           </div>
 
           <div class="small text-muted">
@@ -794,6 +797,7 @@
   const btnZoomIn = document.getElementById('btnZoomIn');
   const btnZoomOut = document.getElementById('btnZoomOut');
   const btnCenterCanvas = document.getElementById('btnCenterCanvas');
+  const btnAutoLayout = document.getElementById('btnAutoLayout');
   const zoomLabel = document.getElementById('builderZoomLabel');
 
   const procesoId = canvas.dataset.procesoId;
@@ -869,6 +873,24 @@
     drawLinks();
   }
 
+  function viewportRect(){
+    return (viewport || canvas).getBoundingClientRect();
+  }
+
+  function clearBuilderLocalAdjustments(){
+    const prefix = `gp:pb:${procesoId}:`;
+    const keysToRemove = [];
+
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(prefix)) {
+        keysToRemove.push(key);
+      }
+    }
+
+    keysToRemove.forEach((key) => localStorage.removeItem(key));
+  }
+
   btnZoomIn?.addEventListener('click', ()=>{
     setCanvasZoom(state.zoom + 0.1, viewport.clientWidth / 2, viewport.clientHeight / 2);
   });
@@ -879,6 +901,39 @@
 
   btnCenterCanvas?.addEventListener('click', ()=>{
     centerCanvas();
+  });
+  btnAutoLayout?.addEventListener('click', async ()=>{
+    if (!procesoId) return;
+
+    const originalText = btnAutoLayout.textContent;
+    btnAutoLayout.disabled = true;
+    btnAutoLayout.textContent = 'Ordenando...';
+
+    try {
+      const res = await fetch(`/process-builder/${procesoId}/auto-layout`, {
+        method: 'POST',
+        headers: {
+          'X-CSRF-TOKEN': CSRF,
+          'Accept': 'application/json',
+        }
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) {
+        alert(data.message || 'No se pudo ordenar automaticamente el proceso.');
+        return;
+      }
+
+      clearBuilderLocalAdjustments();
+      window.location.reload();
+      return;
+    } catch (err) {
+      console.error(err);
+      alert('No se pudo ordenar automaticamente el proceso.');
+    } finally {
+      btnAutoLayout.disabled = false;
+      btnAutoLayout.textContent = originalText;
+    }
   });
 
   // ============================================================
@@ -911,11 +966,11 @@
   document.addEventListener('mousemove', (e) => {
     if (!state.dragging) return;
 
-    const cRect = canvas.getBoundingClientRect();
+    const vRect = viewportRect();
     const scrollLeft = viewport ? viewport.scrollLeft : 0;
     const scrollTop = viewport ? viewport.scrollTop : 0;
-    let x = ((e.clientX - cRect.left) + scrollLeft) / state.zoom - state.dragOffsetX;
-    let y = ((e.clientY - cRect.top) + scrollTop) / state.zoom - state.dragOffsetY;
+    let x = ((e.clientX - vRect.left) + scrollLeft) / state.zoom - state.dragOffsetX;
+    let y = ((e.clientY - vRect.top) + scrollTop) / state.zoom - state.dragOffsetY;
 
     x = Math.max(0, x);
     y = Math.max(0, y);

@@ -29,7 +29,12 @@ class TaskAuditController extends Controller
                     t.status_id,
                     t.priority,
                     t.start_at,
+                    t.sla_hours,
+                    t.sla_started_at,
+                    t.started_at,
                     t.due_at,
+                    t.sla_due_at,
+                    t.completed_at,
                     t.nodo_id,
                     t.created_at,
                     t.updated_at,
@@ -48,7 +53,12 @@ class TaskAuditController extends Controller
                     c2.status_id,
                     c2.priority,
                     c2.start_at,
+                    c2.sla_hours,
+                    c2.sla_started_at,
+                    c2.started_at,
                     c2.due_at,
+                    c2.sla_due_at,
+                    c2.completed_at,
                     c2.nodo_id,
                     c2.created_at,
                     c2.updated_at,
@@ -124,29 +134,34 @@ class TaskAuditController extends Controller
             $lines[] = "   2) Estado actual: " . ($r->status_name ?: '—');
             $lines[] = "   3) Prioridad: " . ($r->priority ?: '—');
             $lines[] = "   4) Fecha de creación: " . $this->fmt($r->created_at);
-            $lines[] = "   5) Fecha de inicio: " . $this->fmt($r->start_at);
-            $lines[] = "   6) Fecha límite: " . $this->fmt($r->due_at);
-            $lines[] = "   7) Última actualización: " . $this->fmt($r->updated_at);
+            $lines[] = "   5) Inicio planificado: " . $this->fmt($r->start_at);
+            $lines[] = "   6) Fecha límite planificada: " . $this->fmt($r->due_at);
+            $lines[] = "   7) SLA configurado (horas): " . ($r->sla_hours ?: '—');
+            $lines[] = "   8) Inicio de conteo SLA: " . $this->fmt($r->sla_started_at);
+            $lines[] = "   9) Fecha límite SLA: " . $this->fmt($r->sla_due_at);
+            $lines[] = "   10) Inicio real de ejecución: " . $this->fmt($r->started_at);
+            $lines[] = "   11) Finalización real: " . $this->fmt($r->completed_at);
+            $lines[] = "   12) Última actualización: " . $this->fmt($r->updated_at);
 
             if ($r->parent_task_id) {
-                $lines[] = "   8) Tarea predecesora: {$r->parent_task_id}";
+                $lines[] = "   13) Tarea predecesora: {$r->parent_task_id}";
             } else {
-                $lines[] = "   8) Tarea predecesora: No aplica (tarea inicial del proceso)";
+                $lines[] = "   13) Tarea predecesora: No aplica (tarea inicial del proceso)";
             }
 
             $acts = $activitiesByTask->get((int)$r->id, collect());
 
             if ($acts->isEmpty()) {
-                $lines[] = "   9) Actividades registradas: No se encontraron actividades en bitácora.";
+                $lines[] = "   14) Actividades registradas: No se encontraron actividades en bitácora.";
                 $lines[] = "";
                 continue;
             }
 
-            $lines[] = "   9) Actividades registradas:";
+            $lines[] = "   14) Actividades registradas:";
             foreach ($acts->values() as $i => $a) {
                 $detail = $this->describeActivity($a);
                 $num = $i + 1;
-                $lines[] = "       9.{$num}) {$detail}";
+                $lines[] = "       14.{$num}) {$detail}";
             }
 
             $lines[] = "";

@@ -14,6 +14,9 @@ class TaskObserver
             'position'   => (int)($task->position ?? 0),
             'project_id' => (int)($task->project_id ?? 0),
             'nodo_id'    => $task->nodo_id ? (int)$task->nodo_id : null,
+            'sla_hours'  => $task->sla_hours ? (int)$task->sla_hours : null,
+            'sla_started_at' => $task->sla_started_at?->toIso8601String(),
+            'sla_due_at' => $task->sla_due_at?->toIso8601String(),
         ], Auth::id());
     }
 

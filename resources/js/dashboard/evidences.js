@@ -13,9 +13,12 @@
     const row = document.querySelector(`[data-evi-row="${CSS.escape(String(itemId))}"]`);
     if (!row) return;
 
+    const st = (estado || STATUS.PENDIENTE).toString().toUpperCase();
+    row.setAttribute('data-estado', st);
+    row.setAttribute('data-has-file', file && (file.original_name || file.download_url) ? '1' : '0');
+
     const badgeHost = row.querySelector('.badge')?.parentElement;
     if (badgeHost) {
-      const st = (estado || STATUS.PENDIENTE).toString().toUpperCase();
       const map = {
         'PENDIENTE': { cls: 'text-bg-secondary', label: 'PENDIENTE' },
         'SUBIDO': { cls: 'text-bg-info', label: 'SUBIDO' },
@@ -46,6 +49,10 @@
         aDL.href = '#';
         aDL.classList.add('d-none');
       }
+    }
+
+    if (typeof window.refreshTaskTransitionState === 'function') {
+      window.refreshTaskTransitionState();
     }
   }
 
@@ -81,6 +88,10 @@
         setRowEstado(itemId, x.estado || STATUS.PENDIENTE, x.file || null);
         setRowError(itemId, null);
       });
+
+      if (typeof window.refreshTaskTransitionState === 'function') {
+        window.refreshTaskTransitionState();
+      }
     } catch (err) {
       console.error(err);
     }

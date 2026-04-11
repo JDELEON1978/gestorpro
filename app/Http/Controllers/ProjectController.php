@@ -121,6 +121,7 @@ class ProjectController extends Controller
                         'ni.item_id as item_id',          // (opcional) ID del catálogo de items
                         'i.nombre as nombre',
                         'i.categoria as categoria',
+                        'i.requiere_evidencia as requiere_evidencia',
                         'ni.obligatorio as obligatorio',
                     ])
                     ->orderBy('ni.id')
@@ -132,6 +133,7 @@ class ProjectController extends Controller
                         'item_id'     => (int)($r->item_id ?? 0),        // opcional
                         'nombre'      => $r->nombre ?? '',
                         'categoria'   => $r->categoria ?? '—',
+                        'requiere_evidencia' => (bool)($r->requiere_evidencia ?? false),
                         'obligatorio' => (bool)($r->obligatorio ?? false),
                     ];
                 })->all();
@@ -205,6 +207,7 @@ class ProjectController extends Controller
                 'id'           => (int)$nodo->id,
                 'nombre'       => $nodo->nombre ?? '',
                 'descripcion'  => $nodo->descripcion ?? '',
+                'sla_horas'    => isset($nodo->sla_horas) && (int)$nodo->sla_horas > 0 ? (int)$nodo->sla_horas : null,
                 'items'        => $items,
                 'transiciones' => $transiciones,
             ],

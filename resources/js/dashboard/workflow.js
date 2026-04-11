@@ -11,7 +11,7 @@
     const rawIsEnd = btn.getAttribute('data-is-end');
     const isEnd = String(rawIsEnd || '').trim() === '1';
 
-    console.log('Click transición workflow', {
+    console.log('Click transicion workflow', {
       taskId,
       projectId,
       nextNodoId,
@@ -23,8 +23,8 @@
     if (!taskId || !projectId) return;
 
     const msg = isEnd
-      ? '¿Seguro que deseas finalizar esta tarea? Se marcará como Done.'
-      : '¿Seguro que deseas terminar esta tarea y abrir la siguiente?';
+      ? 'Seguro que deseas finalizar esta tarea? Se marcara como Done.'
+      : 'Seguro que deseas terminar esta tarea y crear automaticamente la siguiente?';
 
     console.log('Mensaje confirm seleccionado:', msg);
 
@@ -46,12 +46,9 @@
 
       bootstrap.Modal.getOrCreateInstance(document.getElementById('modalTask')).hide();
 
-      if (typeof window.refreshProjectArea === 'function') await window.refreshProjectArea();
-
-      if (data.next_task && typeof window.openEditTaskModal === 'function') {
-        window.openEditTaskModal(data.next_task);
+      if (typeof window.refreshProjectArea === 'function') {
+        await window.refreshProjectArea();
       }
-
     } catch (err) {
       console.error(err);
       alert('Error de red o servidor.');

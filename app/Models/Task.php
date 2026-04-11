@@ -35,6 +35,9 @@ class Task extends Model
         'created_by',
 
         'position',
+        'sla_hours',
+        'sla_started_at',
+        'sla_due_at',
         'started_at',
         'completed_at',
         'archived_at',
@@ -46,10 +49,13 @@ class Task extends Model
     protected $casts = [
         'priority'     => 'integer',
         'position'     => 'integer',
+        'sla_hours'    => 'integer',
 
         'start_at'     => 'datetime',
         'due_at'       => 'datetime',      // si tu DB es datetime, cámbialo a 'datetime'
 
+        'sla_started_at' => 'datetime',
+        'sla_due_at'     => 'datetime',
         'started_at'   => 'datetime',
         'completed_at' => 'datetime',
         'archived_at'  => 'datetime',

@@ -95,6 +95,8 @@ Route::middleware(['auth'])->group(function () {
     // Grafo
     Route::get('/process-builder/{proceso}/graph', [ProcessBuilderController::class, 'graph'])
         ->name('builder.graph');
+    Route::post('/process-builder/{proceso}/auto-layout', [ProcessBuilderController::class, 'autoLayout'])
+        ->name('builder.auto_layout');
 
     // Relación simple (click verde -> click azul)
     Route::post('/process-builder/{proceso}/relacion', [ProcessBuilderController::class, 'storeRelacion'])

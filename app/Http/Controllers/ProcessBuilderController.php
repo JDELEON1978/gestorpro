@@ -237,6 +237,188 @@ public function relacionesNodo(Nodo $nodo)
         ]);
     }
 
+    public function autoLayout(Proceso $proceso)
+    {
+        $nodos = Nodo::where('proceso_id', $proceso->id)
+            ->orderBy('orden')
+            ->orderBy('id')
+            ->get(['id', 'tipo_nodo', 'orden', 'pos_x', 'pos_y']);
+
+        if ($nodos->isEmpty()) {
+            return response()->json(['ok' => true, 'positions' => []]);
+        }
+
+        $relaciones = NodoRelacion::where('proceso_id', $proceso->id)
+            ->orderBy('prioridad')
+            ->orderBy('id')
+            ->get(['id', 'nodo_origen_id', 'nodo_destino_id', 'prioridad']);
+
+        $nodesById = $nodos->keyBy('id');
+        $adjacency = [];
+        $incoming = [];
+        $depths = [];
+
+        foreach ($nodos as $nodo) {
+            $adjacency[$nodo->id] = [];
+            $incoming[$nodo->id] = 0;
+            $depths[$nodo->id] = 0;
+        }
+
+        foreach ($relaciones as $relacion) {
+            if (!$nodesById->has($relacion->nodo_origen_id) || !$nodesById->has($relacion->nodo_destino_id)) {
+                continue;
+            }
+
+            $adjacency[$relacion->nodo_origen_id][] = [
+                'to' => (int) $relacion->nodo_destino_id,
+                'priority' => (int) ($relacion->prioridad ?? 1),
+            ];
+            $incoming[$relacion->nodo_destino_id]++;
+        }
+
+        foreach ($adjacency as &$edges) {
+            usort($edges, function ($a, $b) {
+                return [$a['priority'], $a['to']] <=> [$b['priority'], $b['to']];
+            });
+        }
+        unset($edges);
+
+        $typeWeight = [
+            'inicio' => 0,
+            'actividad' => 1,
+            'decision' => 2,
+            'conector' => 3,
+            'fin' => 4,
+        ];
+
+        $startIds = $nodos
+            ->filter(fn ($nodo) => $nodo->tipo_nodo === 'inicio')
+            ->sortBy(fn ($nodo) => [$nodo->orden ?? PHP_INT_MAX, $nodo->id])
+            ->pluck('id')
+            ->values()
+            ->all();
+
+        $zeroInDegreeIds = $nodos
+            ->filter(fn ($nodo) => ($incoming[$nodo->id] ?? 0) === 0 && !in_array($nodo->id, $startIds, true))
+            ->sortBy(fn ($nodo) => [$typeWeight[$nodo->tipo_nodo] ?? 9, $nodo->orden ?? PHP_INT_MAX, $nodo->id])
+            ->pluck('id')
+            ->values()
+            ->all();
+
+        $queue = array_values(array_merge($startIds, $zeroInDegreeIds));
+        $visited = [];
+        $topological = [];
+
+        while (!empty($queue)) {
+            $currentId = array_shift($queue);
+            if (isset($visited[$currentId])) {
+                continue;
+            }
+
+            $visited[$currentId] = true;
+            $topological[] = $currentId;
+
+            foreach ($adjacency[$currentId] as $edge) {
+                $toId = $edge['to'];
+                $depths[$toId] = max($depths[$toId] ?? 0, ($depths[$currentId] ?? 0) + 1);
+                $incoming[$toId] = max(0, ($incoming[$toId] ?? 0) - 1);
+                if (($incoming[$toId] ?? 0) === 0) {
+                    $queue[] = $toId;
+                }
+            }
+
+            usort($queue, function ($a, $b) use ($depths, $nodesById, $typeWeight) {
+                $nodeA = $nodesById[$a];
+                $nodeB = $nodesById[$b];
+
+                return [
+                    $depths[$a] ?? 0,
+                    $typeWeight[$nodeA->tipo_nodo] ?? 9,
+                    $nodeA->orden ?? PHP_INT_MAX,
+                    $a,
+                ] <=> [
+                    $depths[$b] ?? 0,
+                    $typeWeight[$nodeB->tipo_nodo] ?? 9,
+                    $nodeB->orden ?? PHP_INT_MAX,
+                    $b,
+                ];
+            });
+        }
+
+        $maxDepth = empty($depths) ? 0 : max($depths);
+        $remaining = $nodos
+            ->filter(fn ($nodo) => !isset($visited[$nodo->id]))
+            ->sortBy(fn ($nodo) => [$typeWeight[$nodo->tipo_nodo] ?? 9, $nodo->orden ?? PHP_INT_MAX, $nodo->id])
+            ->values();
+
+        foreach ($remaining as $offset => $nodo) {
+            $depths[$nodo->id] = $maxDepth + 1 + $offset;
+            $topological[] = $nodo->id;
+        }
+
+        $nodeWidth = 260;
+        $nodeHeight = 96;
+        $columnGap = 340;
+        $rowGap = 150;
+        $baseX = 120;
+        $baseY = 120;
+        $printTitleBlockReserve = 420;
+        $printFooterReserve = 140;
+        $targetPrintableRatio = 1.58;
+        $nodeCount = count($topological);
+
+        $bestRowsPerColumn = 8;
+        $bestScore = PHP_FLOAT_MAX;
+
+        for ($rowsPerColumn = 5; $rowsPerColumn <= 12; $rowsPerColumn++) {
+            $columnCount = (int) ceil($nodeCount / $rowsPerColumn);
+            $layoutWidth = ($columnCount > 0 ? (($columnCount - 1) * $columnGap) : 0) + $nodeWidth + ($baseX * 2) + $printTitleBlockReserve;
+            $layoutHeight = (($rowsPerColumn - 1) * $rowGap) + $nodeHeight + ($baseY * 2) + $printFooterReserve;
+            $ratio = $layoutHeight > 0 ? ($layoutWidth / $layoutHeight) : $targetPrintableRatio;
+            $score = abs($ratio - $targetPrintableRatio) + ($columnCount * 0.035);
+
+            if ($score < $bestScore) {
+                $bestScore = $score;
+                $bestRowsPerColumn = $rowsPerColumn;
+            }
+        }
+
+        $positions = [];
+        $logicalOrder = 1;
+
+        DB::transaction(function () use ($topological, $nodesById, $bestRowsPerColumn, $columnGap, $rowGap, $baseX, $baseY, &$positions, &$logicalOrder) {
+            foreach (array_values($topological) as $index => $nodeId) {
+                $node = $nodesById[$nodeId];
+                $columnIndex = (int) floor($index / $bestRowsPerColumn);
+                $rowIndex = $index % $bestRowsPerColumn;
+                $x = $baseX + ($columnIndex * $columnGap);
+                $y = $baseY + ($rowIndex * $rowGap);
+
+                $node->update([
+                    'orden' => $logicalOrder++,
+                    'pos_x' => $x,
+                    'pos_y' => $y,
+                ]);
+
+                $positions[] = [
+                    'id' => $nodeId,
+                    'pos_x' => $x,
+                    'pos_y' => $y,
+                    'orden' => $node->orden,
+                ];
+            }
+        });
+
+        return response()->json([
+            'ok' => true,
+            'positions' => $positions,
+            'layout' => [
+                'rows_per_column' => $bestRowsPerColumn,
+                'orientation' => 'vertical',
+            ],
+        ]);
+    }
+
         public function updateNodoPosition(Request $r, Nodo $nodo)
         {
             $data = $r->validate([

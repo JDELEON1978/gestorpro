@@ -47,7 +47,11 @@ class DashboardController extends Controller
             $statuses = $currentProject->statuses;
 
             $tasks = $currentProject->tasks()
-                ->with(['assignee'])
+                ->with([
+                    'assignee:id,name',
+                    'creator:id,name',
+                    'nodo:id,nombre',
+                ])
                 ->whereNull('archived_at')
                 ->orderBy('status_id')
                 ->orderBy('position')
